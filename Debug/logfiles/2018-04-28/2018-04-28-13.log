@@ -1,0 +1,18 @@
+2018-04-28 13:35:18:
+同步新数据操作失败!SELECT `device_type`.`Id`,		`device_type`.`Name`,		`device_type`.`ParentId`,		`device_type`.`AreaId`,		`device_type`.`SynchronState`,		`device_type`.`CreateDate`,		`device_type`.`CreateUserId`		FROM `device_type` where AreaId='64a803573ba04b17a8c194771bc0e639' and SynchronState='0';		
+2018-04-28 13:35:18:
+Lost connection to MySQL server during query
+2018-04-28 13:35:18:
+设备类型表(device_type) -同步失败!
+2018-04-28 13:36:28:
+同步新数据操作失败!SELECT `device_type`.`Id`,		`device_type`.`Name`,		`device_type`.`ParentId`,		`device_type`.`AreaId`,		`device_type`.`SynchronState`,		`device_type`.`CreateDate`,		`device_type`.`CreateUserId`		FROM `device_type` where AreaId='64a803573ba04b17a8c194771bc0e639' and SynchronState='0';		
+2018-04-28 13:36:39:
+MySQL server has gone away
+2018-04-28 13:36:41:
+设备类型表(device_type) -同步失败!
+2018-04-28 13:43:50:
+--------------程序启动!--------------
+2018-04-28 13:43:54:
+同步表[device_type]操作完成!
+2018-04-28 13:43:54:
+同步表[device_type]操作完成!

@@ -1,0 +1,2524 @@
+
+// WPD_MTP_dataDlg.cpp : 实现文件
+//
+
+#include "stdafx.h"
+#include "WPD_MTP_data.h"
+#include "WPD_MTP_dataDlg.h"
+#include "afxdialogex.h"
+#include <Dbt.h>
+#include <map>
+//#include "MyAec.h"
+using namespace std;
+#ifdef _DEBUG
+#define new DEBUG_NEW
+#endif
+
+
+// CWPD_MTP_dataDlg 对话框
+// Device enumeration
+DWORD EnumerateAllDevices();
+void ChooseDevice(_Outptr_result_maybenull_ IPortableDevice** device);
+BOOL ChooseDevice(
+	_Outptr_result_maybenull_ IPortableDevice** device, CString strDevID, PWSTR buffErr);
+//新增 获取所有的设备并返回  bufferr保存错误信息 wchar buffErr[1024] = {0};
+BOOL GetWDPAllDevice(CStringArray & strArr, CStringArray& strArrName, PWSTR buffErr);
+void GetClientInformation(
+	_Outptr_result_maybenull_ IPortableDeviceValues** clientInformation);
+HRESULT OpenDevice(LPCWSTR wszPnPDeviceID, IPortableDevice** ppDevice);
+
+
+// Content enumeration
+void EnumerateAllContent(_In_ IPortableDevice* device, _In_ PCWSTR fileName);
+void ReadHintLocations(_In_ IPortableDevice* device);
+
+// Content transfer
+void TransferContentFromDevice(_In_ IPortableDevice* device);
+void TransferContentToDevice(
+	_In_ IPortableDevice* device,
+	_In_ REFGUID          contentType,
+	_In_ PCWSTR           fileTypeFilter,
+	_In_ PCWSTR           defaultFileExtension);
+void TransferContactToDevice(_In_ IPortableDevice* device);
+void CreateFolderOnDevice(_In_ IPortableDevice* device);
+void CreateContactPhotoResourceOnDevice(_In_ IPortableDevice* device);
+
+// Content deletion
+void DeleteContentFromDevice(_In_ IPortableDevice* device);
+
+// Content moving
+void MoveContentAlreadyOnDevice(_In_ IPortableDevice* device);
+
+// Content update (properties and data simultaneously)
+void UpdateContentOnDevice(
+	_In_ IPortableDevice* device,
+	_In_ REFGUID          contentType,
+	_In_ PCWSTR           fileTypeFilter,
+	_In_ PCWSTR           defaultFileExtension,
+	_In_	PCWSTR strID);
+
+// Content properties
+void ReadContentProperties(_In_ IPortableDevice* device);
+void WriteContentProperties(_In_ IPortableDevice* device);
+void ReadContentPropertiesBulk(_In_ IPortableDevice* device);
+void WriteContentPropertiesBulk(_In_ IPortableDevice* device);
+void ReadContentPropertiesBulkFilteringByFormat(_In_ IPortableDevice* device);
+
+// Functional objects
+void ListFunctionalObjects(_In_ IPortableDevice* device);
+void ListFunctionalCategories(_In_ IPortableDevice* device);
+void ListSupportedContentTypes(_In_ IPortableDevice* device);
+void ListRenderingCapabilityInformation(_In_ IPortableDevice* device);
+
+// Device events
+void ListSupportedEvents(_In_ IPortableDevice* device);
+void RegisterForEventNotifications(_In_ IPortableDevice* device, _Inout_ PWSTR* eventCookie);
+void UnregisterForEventNotifications(_In_opt_ IPortableDevice* device, _In_opt_ PCWSTR eventCookie);
+
+// Misc.
+void GetObjectIdentifierFromPersistentUniqueIdentifier(_In_ IPortableDevice* device);
+
+//获取ShouChiZhongDuan文件夹ID
+PCWSTR getSpecifiedObjectID(_In_ IPortableDevice* device, PCWSTR fileName);
+void TransforDataFromDevice(_In_ IPortableDevice* device, _In_ PCWSTR objectID);
+map<wstring, wstring> childIDs;    //存放需要传递的文件的对象ID<->名称
+void getChildIDs(_In_ IPortableDevice* device, _In_ IPortableDeviceContent* content, _In_ PCWSTR parentID);
+PCWSTR getIDByParentID(_In_ IPortableDevice* device, _In_ IPortableDeviceContent* content, _In_ PCWSTR parentID, _In_ PCWSTR name);
+BOOL  TransferDataToDevice(
+	_In_ IPortableDevice* device,
+	_In_ REFGUID          contentType,
+	_In_ PCWSTR parentID
+	, PCWSTR strFilePath
+	, PWSTR strErr);
+void DeleteDataFromDevice(_In_ IPortableDevice* device, _In_ PCWSTR objectID);
+
+void DoMenu()
+{
+	HRESULT hr = S_OK;
+	UINT    selectionIndex = 0;
+	PWSTR   eventCookie = nullptr;
+	WCHAR   selectionString[SELECTION_BUFFER_SIZE] = { 0 };
+	ComPtr<IPortableDevice> device;
+
+	ChooseDevice(&device);  //默认第一个设备
+
+	if (device == nullptr)
+	{
+		// No device was selected, so exit immediately.
+		return;
+	}
+
+	//获取ShouChiZhongDuan文件夹的ID
+	PCWSTR objID = getSpecifiedObjectID(device.Get(), L"音乐");  //koudaigouwu.apk
+															   //获取ShouChiZhongDuan/data和ShouChiZhongDuan/data/phone.db的ID
+	ComPtr<IPortableDeviceContent>  content;
+	hr = device->Content(&content);
+	if (FAILED(hr))
+	{
+		wprintf(L"! Failed to get IPortableDeviceContent from IPortableDevice, hr = 0x%lx\n", hr);
+		return;
+	}
+	PCWSTR dataID = getIDByParentID(device.Get(), content.Get(), objID, L"data");
+	PCWSTR phoneID = getIDByParentID(device.Get(), content.Get(), dataID, L"phone");
+	//删除手持设备上的phone.db
+	DeleteDataFromDevice(device.Get(), phoneID);
+	//拷贝phone.db到手持设备上
+	//TransferDataToDevice(device.Get(), WPD_CONTENT_TYPE_ALL, dataID,gFilePath);
+
+
+
+	CoTaskMemFree(eventCookie);
+}
+
+
+/************************************************************************/
+//共享变量
+
+
+CString	gDirID, gFileID; //phone端 sqlite 数据库存放位置ID  和 文件的ID
+CString gFilePath; //中间文件的 路径
+/************************************************************************/
+
+CWPD_MTP_dataDlg::CWPD_MTP_dataDlg(CWnd* pParent /*=NULL*/)
+	: CDialogEx(IDD_WPD_MTP_DATA_DIALOG, pParent)
+{
+	m_showDevicesFlag = TRUE;
+	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+}
+
+void CWPD_MTP_dataDlg::DoDataExchange(CDataExchange* pDX)
+{
+	CDialogEx::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_LIST_MSG, m_listShow);
+	DDX_Control(pDX, IDC_COMBOX_Devices, m_combox_devices);
+	DDX_Control(pDX, IDC_COMBOX_QyChoose, m_combox_chooseArea);
+	DDX_Control(pDX, IDC_TREE_AREAS, m_tree_areas);
+	DDX_Control(pDX, IDC_STATIC_Area, m_static_current_area);
+}
+
+BEGIN_MESSAGE_MAP(CWPD_MTP_dataDlg, CDialogEx)
+	ON_WM_PAINT()
+	ON_WM_QUERYDRAGICON()
+	ON_BN_CLICKED(IDC_BT_TOPHONE, &CWPD_MTP_dataDlg::OnBnClickedBtTophone)
+	ON_CBN_SELCHANGE(IDC_COMBOX_Devices, &CWPD_MTP_dataDlg::OnCbnSelchangeComboxDevices)
+	ON_WM_INPUT_DEVICE_CHANGE()
+	ON_MESSAGE(WM_DEVICECHANGE, OnMyDeviceChange)
+	ON_WM_CLOSE()
+	ON_LBN_DBLCLK(IDC_LIST_MSG, &CWPD_MTP_dataDlg::OnLbnDblclkListMsg)
+	ON_NOTIFY(TVN_SELCHANGED, IDC_TREE_AREAS, &CWPD_MTP_dataDlg::OnTvnSelchangedTreeAreas)
+	ON_BN_CLICKED(IDC_REFRESH_DEVS, &CWPD_MTP_dataDlg::OnBnClickedRefreshDevs)
+END_MESSAGE_MAP()
+
+
+// CWPD_MTP_dataDlg 消息处理程序
+//不断刷新 所有连接的设备
+UINT ShowAllDevices(LPVOID pParam)
+{
+	CWPD_MTP_dataDlg* pDlg = (CWPD_MTP_dataDlg*)pParam;
+	
+	WCHAR buffErr[1024] = { 0 };
+	CStringArray strNames;
+	while (pDlg->m_showDevicesFlag)
+	{
+		pDlg->m_strDevicesID.RemoveAll();
+		strNames.RemoveAll();
+		if (!GetWDPAllDevice(pDlg->m_strDevicesID, strNames, buffErr))
+			CLogRecord::WriteRecordToFile(buffErr);
+		else
+		{
+			pDlg->m_combox_devices.ResetContent();
+			for (int index = 0; index < pDlg->m_strDevicesID.GetSize(); ++index)
+			{
+				pDlg->m_combox_devices.AddString(strNames.GetAt(index));
+				pDlg->m_combox_devices.SetCurSel(index);
+			}
+		}
+		//pDlg->ShowLog(_T("扫描设备信息!"));
+		ASSERT(pDlg->m_threadShowDevs);
+		SuspendThread(pDlg->m_threadShowDevs->m_hThread);
+	}
+	return 0;
+}
+
+static const GUID GUID_DEVINTERFACE_LIST[] = { 0xA5DCBF10, 0x6530, 0x11D2,{ 0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED } };
+BOOL CWPD_MTP_dataDlg::OnInitDialog()
+{
+	CDialogEx::OnInitDialog();
+	/************************************************************************/
+	//对于wm_devicechange消息 注册 不注册 不会相应
+
+	CLogRecord::WriteRecordToFile(_T("开始初始化工作!"));
+
+	HDEVNOTIFY hDevNotify;
+	DEV_BROADCAST_DEVICEINTERFACE NotificationFilter;
+
+	std::memset(&NotificationFilter, 0, sizeof(NotificationFilter));
+	NotificationFilter.dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE);
+	NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+	for (int i = 0; i < sizeof(GUID_DEVINTERFACE_LIST) / sizeof(GUID); i++)
+	{
+		NotificationFilter.dbcc_classguid = GUID_DEVINTERFACE_LIST[i];
+		hDevNotify = RegisterDeviceNotification(this->GetSafeHwnd(), &NotificationFilter, DEVICE_NOTIFY_WINDOW_HANDLE);
+		if (!hDevNotify)
+		{
+			AfxMessageBox(CString("Can't register device notification: ")
+				+ _com_error(GetLastError()).ErrorMessage(), MB_ICONEXCLAMATION);
+			return FALSE;
+		}
+	}
+	
+	/************************************************************************/
+	// 设置此对话框的图标。  当应用程序主窗口不是对话框时，框架将自动
+	//  执行此操作
+	SetIcon(m_hIcon, TRUE);			// 设置大图标
+	SetIcon(m_hIcon, FALSE);		// 设置小图标
+
+	//1.初始化 配置
+	if (!InitConfig())
+	{
+		ShowLog(_T("配置文件初始化失败!"));
+	}
+	else
+		ShowLog(_T("配置文件初始化成功!"));
+
+	//初始化区域combox
+	Synchrodata_areas();
+
+
+	//优先级为“一般”的线程，默认栈大小，创建时挂起 CREATE_SUSPENDED
+	m_threadShowDevs = AfxBeginThread(ShowAllDevices, this,THREAD_PRIORITY_NORMAL, 0);
+
+	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
+}
+
+// 如果向对话框添加最小化按钮，则需要下面的代码
+//  来绘制该图标。  对于使用文档/视图模型的 MFC 应用程序，
+//  这将由框架自动完成。
+
+void CWPD_MTP_dataDlg::OnPaint()
+{
+	if (IsIconic())
+	{
+		CPaintDC dc(this); // 用于绘制的设备上下文
+
+		SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
+
+		// 使图标在工作区矩形中居中
+		int cxIcon = GetSystemMetrics(SM_CXICON);
+		int cyIcon = GetSystemMetrics(SM_CYICON);
+		CRect rect;
+		GetClientRect(&rect);
+		int x = (rect.Width() - cxIcon + 1) / 2;
+		int y = (rect.Height() - cyIcon + 1) / 2;
+
+		// 绘制图标
+		dc.DrawIcon(x, y, m_hIcon);
+	}
+	else
+	{
+		CDialogEx::OnPaint();
+	}
+}
+
+//当用户拖动最小化窗口时系统调用此函数取得光标
+//显示。
+HCURSOR CWPD_MTP_dataDlg::OnQueryDragIcon()
+{
+	return static_cast<HCURSOR>(m_hIcon);
+}
+void MyStringSplit(CString source, CStringArray& dest, TCHAR division)
+{
+	if (source.IsEmpty())
+	{
+
+	}
+	else
+	{
+		int pos = source.Find(division);
+		if (pos == -1)
+		{
+			dest.Add(source);
+		}
+		else
+		{
+			dest.Add(source.Left(pos));
+			source = source.Mid(pos + 1);
+			MyStringSplit(source, dest, division);
+		}
+	}
+}
+//配置文件初始化
+bool CWPD_MTP_dataDlg::InitConfig()
+{
+	CString strIni = CLogRecord::GetAppPath() + _T("//config//config.ini");
+	
+	string strAecKey = "0123456789ABCDEF0123456789ABCDEF";//256bits, also can be 128 bits or 192bits  
+	string aesIV = "ABCDEF0123456789";//128 bits
+	
+	CStringA strPath = CpublicFun::UnicodeToAsc(strIni);
+	m_strIni = strIni;
+	char buff[MAX_PATH] = { 0 };
+
+	CStringA aecFlag; //aec 加密标识  0未加密  1加密
+
+	GetPrivateProfileStringA(("DATABASE"), ("aec"), "0"
+		, buff, MAX_PATH, strPath);
+	aecFlag = buff;
+	std::memset(buff, 0, sizeof(buff));
+
+	//MyAec myaec;
+	string strOut; //中间变量 缓存 加密返回的数据
+// 	if (aecFlag == "1") //已经加密过了
+// 	{
+// 		GetPrivateProfileStringA(("DATABASE"), ("server"), ("127.0.0.1")
+// 			, buff, MAX_PATH, strPath);
+// 		strOut = myaec.CBC_AESDecryptStr(strAecKey, aesIV, buff);
+// 		m_mysqlLogin.server = strOut.c_str();
+// 		std::memset(buff, 0, sizeof(buff));
+// 
+// 		GetPrivateProfileStringA(("DATABASE"), ("username"), ("root")
+// 			, buff, MAX_PATH, strPath);
+// 		strOut = myaec.CBC_AESDecryptStr(strAecKey, aesIV, buff);
+// 		m_mysqlLogin.user = strOut.c_str();
+// 		std::memset(buff, 0, sizeof(buff));
+// 
+// 		GetPrivateProfileStringA(("DATABASE"), ("password"), ("root")
+// 			, buff, MAX_PATH, strPath);
+// 		strOut = myaec.CBC_AESDecryptStr(strAecKey, aesIV, buff);
+// 		m_mysqlLogin.password = strOut.c_str();
+// 		std::memset(buff, 0, sizeof(buff));
+// 
+// 		GetPrivateProfileStringA(("DATABASE"), ("database"), ("userDB")
+// 			, buff, MAX_PATH, strPath);
+// 		strOut = myaec.CBC_AESDecryptStr(strAecKey, aesIV, buff);
+// 		m_mysqlLogin.database = strOut.c_str();
+// 		std::memset(buff, 0, sizeof(buff));
+// 
+// 		GetPrivateProfileStringA(("DATABASE"), ("port"), ("3306")
+// 			, buff, MAX_PATH, strPath);
+// 		strOut = myaec.CBC_AESDecryptStr(strAecKey, aesIV, buff);
+// 		m_mysqlLogin.port = atoi(strOut.c_str());
+// 		std::memset(buff, 0, sizeof(buff));
+// 	}
+// 	else //第一次加密	////加密 数据库 连接信息 保存	
+	{
+		GetPrivateProfileStringA(("DATABASE"), ("server"), ("127.0.0.1")
+			, buff, MAX_PATH, strPath);
+		m_mysqlLogin.server = buff;
+		
+		std::memset(buff, 0, sizeof(buff));
+		///
+
+		GetPrivateProfileStringA(("DATABASE"), ("username"), ("root")
+			, buff, MAX_PATH, strPath);
+		
+		m_mysqlLogin.user = buff;
+		
+		std::memset(buff, 0, sizeof(buff));
+		///
+
+		GetPrivateProfileStringA(("DATABASE"), ("password"), ("root")
+			, buff, MAX_PATH, strPath);
+		
+		m_mysqlLogin.password = buff;
+	
+		std::memset(buff, 0, sizeof(buff));
+		//
+
+
+
+		GetPrivateProfileStringA(("DATABASE"), ("database"), ("userDB")
+			, buff, MAX_PATH, strPath);
+		
+		m_mysqlLogin.database = buff;
+	
+		std::memset(buff, 0, sizeof(buff));
+		//
+
+		GetPrivateProfileStringA(("DATABASE"), ("port"), ("3306")
+			, buff, MAX_PATH, strPath);
+		m_mysqlLogin.port = atoi(buff);
+	
+		std::memset(buff, 0, sizeof(buff));
+		//
+		//修改为加密 状态 1
+		//WritePrivateProfileStringA(("DATABASE"), ("aec"), "1", strPath);
+	}
+	//////////////////////////////////////////////////////////////////////////
+	//分割字符串
+	TCHAR bufGUID[MAX_PATH] = { 0 };
+
+	GetPrivateProfileString(_T("PHONE"), _T("path"), _T("")
+		, bufGUID, MAX_PATH, strIni);
+	CString strphonePath = bufGUID;
+	std::memset(bufGUID, 0, sizeof(bufGUID));
+
+	GetPrivateProfileString(_T("PHONE"), _T("split"), _T("")
+		, bufGUID, MAX_PATH, strIni);
+	CString strSplite = bufGUID;
+	std::memset(bufGUID, 0, sizeof(bufGUID));
+
+	GetPrivateProfileString(_T("PHONE"), _T("type"), _T("")
+		, bufGUID, MAX_PATH, strIni);
+	CString strType = bufGUID;
+	std::memset(bufGUID, 0, sizeof(bufGUID));
+
+
+	MyStringSplit(strphonePath, m_aryFileName, *(strSplite.GetBuffer()));
+
+	if (m_aryFileName.IsEmpty() || strType.IsEmpty())
+	{
+		return false;
+	}
+
+	m_fileName = m_aryFileName.GetAt(m_aryFileName.GetSize() - 1) + strType;
+	return true;
+}
+//日志输出
+void CWPD_MTP_dataDlg::ShowLog(CString const& strLog)
+{
+	m_listShow.AddString(strLog);
+	CLogRecord::WriteRecordToFile(strLog);
+}
+
+//寻找 子节点 并 加入到树控件
+//参数为 父节点 和 对应树控件的 句柄
+void  CWPD_MTP_dataDlg::FindChildTree(CMap<CString, LPCTSTR, HTREEITEM, HTREEITEM>& mapParent)
+{
+	//1.返回 当 没有父亲 就说明全是 叶节点 返回
+	if (mapParent.GetSize() <= 0)
+	{
+		return;
+	}
+	//2.找 相应父亲的直接 子节点
+	CString strKey,strValue;
+	HTREEITEM valueItem;
+	CString parentKey;
+	
+	POSITION posParent = mapParent.GetStartPosition();
+
+		while (posParent)
+		{
+			mapParent.GetNextAssoc(posParent, parentKey, valueItem);
+			CMap<CString, LPCTSTR, HTREEITEM, HTREEITEM> mapParentItem; //父节点 对应的 树控件节点 句柄
+			POSITION pos = m_mapAreaParent.GetStartPosition();
+			while (pos)
+			{
+				m_mapAreaParent.GetNextAssoc(pos, strKey, strValue);//遍历 所有的 节点				
+				if (parentKey == strValue) //当该节点为父节点
+				{
+					HTREEITEM item = m_tree_areas.InsertItem(m_mapArea[strKey], valueItem);// 在根结点上添加Parent
+					mapParentItem[strKey] = item; //构建新的 父节点
+					m_mapTreeCtrToID[item] = strKey;
+				}
+			}
+			//递归 获取
+			FindChildTree(mapParentItem);
+		}
+}
+
+//更新mysql数据库
+BOOL CWPD_MTP_dataDlg::UpdateMysqlDB(CList<CStringA> const& list)
+{
+
+	POSITION posUpdate = list.GetHeadPosition();
+	string strTemp;
+	int sqlNum = 0;
+	while (posUpdate != NULL)
+	{
+		if (++sqlNum > UPDATEMAX)
+		{
+			if (!CMyDataBase::GetInstance()->Query(strTemp))
+			{
+				return FALSE;
+			}
+			strTemp = ""; //重置中间变量
+			continue;
+		}
+		else
+		{
+			strTemp += list.GetNext(posUpdate);
+		}
+		//pDC->TextOut(200, 200, );//假设代码是在View类中的OnDraw()
+
+	}
+	if (strTemp != "" )
+		return CMyDataBase::GetInstance()->Query(strTemp);
+	else if(strTemp != "" && sqlNum == 1)
+		return CMyDataBase::GetInstance()->OneQuery(strTemp);
+
+}
+
+//初始化 区域combox
+BOOL CWPD_MTP_dataDlg::Synchrodata_areas()
+{
+	try {
+
+
+		std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+														//2.获取 mysql数据库的 区域表
+		if (CMyDataBase::GetInstance()->InitMyDataBase(m_mysqlLogin))
+		{
+			if (CMyDataBase::GetInstance()->Select("SELECT `areas`.`Id`,\
+			`areas`.`Code`,\
+			`areas`.`Name`,\
+			`areas`.`ParentId`,\
+			`areas`.`CreateDate`,\
+			`areas`.`CreateUserId`\
+			FROM `areas`", vecData))
+			{
+				int index = 0;
+				CString strName;
+				for each (std::vector<std::string> varVec in vecData)
+				{
+					//区域选择 保存ID
+					strName = CpublicFun::AscToUnicode(varVec[areas_Name].c_str());
+					m_mapArea[CpublicFun::AscToUnicode(varVec[areas_Id].c_str())] = strName;
+					//m_combox_chooseArea.AddString(strName);
+					m_mapAreaParent[CpublicFun::AscToUnicode(varVec[areas_Id].c_str())] = CpublicFun::AscToUnicode(varVec[areas_ParentId].c_str());
+				}
+
+				//m_combox_chooseArea.SetCurSel(0);
+			}
+		}
+		else
+		{
+			CStringA err = CMyDataBase::GetInstance()->GetErrorInfo();
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(err));
+			ShowLog(_T("mysql数据库连接失败,请确保连接无误并重启软件!"));
+			return FALSE;
+		}
+		//关闭数据库
+		CMyDataBase::GetInstance()->Close();
+
+
+		DWORD dwStyles = m_tree_areas.GetStyle();//获取树控制原风格  
+		dwStyles |= TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS;
+		m_tree_areas.ModifyStyle(0, dwStyles);
+		//初始化 树控件
+		//1.先插入 父亲节点
+		POSITION pos = m_mapAreaParent.GetStartPosition();
+		CMap<CString, LPCTSTR, HTREEITEM, HTREEITEM> mapParentItem; //父节点 对应的 树控件节点 句柄
+		CString strKey, strValue;
+		while (pos)
+		{
+			m_mapAreaParent.GetNextAssoc(pos, strKey, strValue);
+			if (strValue == _T("0")) //为父亲节点
+			{
+				HTREEITEM item = m_tree_areas.InsertItem(m_mapArea[strKey], TVI_ROOT);// 在根结点上添加Parent
+				mapParentItem[strKey] = item;
+				m_mapTreeCtrToID[item] = strKey;
+			}
+		}
+
+		//递归构建 区域 树
+		FindChildTree(mapParentItem);
+
+		return TRUE;
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+}
+
+/*同步work_record表数据,
+
+1.同步phone端 记录数据到 pc端
+
+需要根据 选择区域 的设备ID 来找
+strAreaID  选择区域ID 暂时不用
+新增需求:双向同步 
+*/
+BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CString const& strDBPath)
+{
+	try {
+		//所选区域没有设备 
+// 		if (m_areasDeviceID.IsEmpty())
+// 		{
+// 			CLogRecord::WriteRecordToFile(_T("没有数据需要同步,表[work_record]操作完成!"));
+// 			return TRUE;
+// 		}
+		//限定一个时间范围
+		COleDateTime  curTime = COleDateTime::GetTickCount();
+		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
+		CString strCurTime = curTime.Format(_T("%Y-%m-%d %H:%M:%S"));
+		CString strBeginTime = beginTime.Format(_T("%Y-%m-%d 00:00:00"));
+		std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+		CString strSql;
+
+
+		//0.同步phone端的记录
+
+		CList<CStringA> listUpdateSql; //保存需要更新的sql语句
+		CSQLite sqOne;
+		if (sqOne.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+		{
+			int RFidCount = 0,RFidNum=0;
+			BOOL ret = FALSE;
+			strSql.Format(_T("SELECT count(*) FROM `work_record` where SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';")
+				, strBeginTime, strCurTime);
+			//char buf[MAX_PATH] = { 0 };
+			if (ret = sqOne.QuickSelectDataCount(CpublicFun::UnicodeToAsc(strSql), RFidCount))
+			//if (sqOne.QuickSelectDataCount(strSql,RFidCount))
+			{
+				//RFidCount = atoi(buf);
+				if (RFidCount > 0)
+				{
+					CStringA strTemp;
+					CStringArray** ppAryData = new CStringArray*[RFidCount]; //同步到mysql数据库
+					CStringArray** ppAryDataSqlite = new CStringArray*[RFidCount]; //更新phone端sqlite 数据 Id 和 同步状态
+					strSql.Format(_T("SELECT `Id`,`DeviceId`,`WorkTaskId`,`Number`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`Executor`,ClassName FROM `work_record` where SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';")
+						, strBeginTime, strCurTime);
+
+					if (ret = sqOne.QuickSelectData(CpublicFun::UnicodeToAsc(strSql), ppAryData, RFidCount))
+					{
+						//数据转换
+					
+						CString strRepTemp; //中间变量
+						for (int index = 0; index < RFidCount; ++index)
+						{
+							ppAryDataSqlite[index] = new CStringArray;
+							ppAryDataSqlite[index]->Add(ppAryData[index]->GetAt(work_record_Id));
+
+
+							//做数据转换
+							for (int ind = 0; ind < work_record_max;++ind)
+							{
+								
+								strRepTemp = ppAryData[index]->GetAt(ind);
+								if (-1 != strRepTemp.Find(_T("\\")))
+								{
+									strRepTemp.Replace(_T("\\"), _T("\\\\"));
+									ppAryData[index]->SetAt(ind, strRepTemp);
+								}
+							}
+
+
+
+							strTemp.Format("REPLACE INTO work_record(`Id`,`DeviceId`,`WorkTaskId`,`Number`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`CreateUserId`,ClassName)\
+							values('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s');"
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(work_record_Id))
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(work_record_DeviceId))
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(work_record_WorkTaskId))
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(work_record_Number))
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(work_record_ProcessName))
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(work_record_Results))
+								, "1"//同步状态 1已同步
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(work_record_CreateDate))
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(work_record_CreateUserId))
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(work_record_ClassName))
+							);
+							listUpdateSql.AddTail(strTemp);
+						}
+						RFidNum = ppAryDataSqlite[0]->GetSize(); //获取表列数
+						//更新phone端sqlite 状态
+						if (!sqOne.QuickInsertData("UPDATE work_record set SynchronState ='1' where Id=?;", ppAryDataSqlite, RFidCount, RFidNum, CSQLite::sqlite3_bind))
+						{
+							CLogRecord::WriteRecordToFile(sqOne.GetLastErrorStr());
+							sqOne.CloseDataBase();
+							return FALSE;
+						}
+							
+						//销毁 缓存
+						for (int index = 0; index < RFidCount; ++index)
+						{
+							delete ppAryData[index];
+						}
+						for (int index = 0; index < RFidCount; ++index)
+						{
+							delete ppAryDataSqlite[index];
+						}
+					}
+
+
+					delete[] ppAryData;
+					delete[] ppAryDataSqlite;
+
+				}
+			}
+			sqOne.CloseDataBase();
+			if (!ret)
+			{
+				CLogRecord::WriteRecordToFile(sqOne.GetLastErrorStr());
+				return FALSE;
+			}
+		}
+		else
+		{
+			CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+			CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+			return FALSE;
+		}
+
+		//更新mysql数据库
+		if (!UpdateMysqlDB(listUpdateSql))
+		{
+			ShowLog(_T("从phone更新记录数据服务端work_record失败!"));
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+			return FALSE;
+		}
+		
+		//同步服务端的数据
+
+		strSql.Format(_T("SELECT `Id`,`DeviceId`,`WorkTaskId`,`Number`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`CreateUserId`,ClassName FROM `work_record` where SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';")
+			, strBeginTime, strCurTime);
+		//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
+		if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+		{
+			int dataCount = vecData.size(), dataNum = 0;
+			if (dataCount > 0)//有数据可以同步
+			{
+				CSQLite sq;
+				if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+				{
+					CStringA strTemp;
+					CStringArray** ppAryData = new CStringArray*[dataCount];
+					int index = 0;
+
+					for each (std::vector<string> varVec in vecData)
+					{
+						//2.构建 更新 字符串 并保留起来,等到 同步完成 后 写入mysql数据库
+						strTemp.Format(("UPDATE work_record set SynchronState ='1'  where Id='%s';")
+							, (varVec[work_record_Id].c_str()));
+						m_updateMysqlData.AddTail(strTemp.GetBuffer());
+						ppAryData[index] = new CStringArray;
+						for each (string var in varVec)
+						{
+							ppAryData[index]->Add(CpublicFun::AscToUnicode(var.c_str()));
+						}
+						ppAryData[index]->SetAt(work_record_SynchronState, _T("1"));
+						++index;
+					}
+					dataNum = ppAryData[0]->GetSize();
+					//执行 没有就插入  有就更新
+					CStringA strSql = "REPLACE INTO work_record(`Id`,`DeviceId`,`WorkTaskId`,`Number`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`Executor`,ClassName) VALUES(?,?,?,?,?,?,?,?,?,?);";
+
+					BOOL ret = sq.QuickInsertData(strSql
+						, ppAryData, dataCount, dataNum, CSQLite::sqlite3_bind);
+					for (int index = 0; index < dataCount; ++index)
+					{
+						delete ppAryData[index];
+					}
+
+					delete[] ppAryData;
+
+
+					sq.CloseDataBase();
+
+					if (!ret)
+					{
+						CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+						return FALSE;
+					}
+				}
+				else
+				{
+					CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+					CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+					return FALSE;
+				}
+			}
+		}
+		else
+		{
+			CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+			return FALSE;
+		}
+
+		CLogRecord::WriteRecordToFile(_T("同步表[work_record]操作完成!"));
+		return TRUE;
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+}
+
+
+/*同步work_task表数据,
+1.pc端向phone端同步未同步的数据, 更改 同步状态.
+2.表中同步状态为 已删除 则 删除phone端数据
+3.同步phone端 完成状态和RFId
+
+需要根据 选择区域 的设备ID 来找
+strAreaID  选择区域ID 暂时不用
+*/
+BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString const& strDBPath)
+{
+	try
+	{
+		//所选区域没有设备 
+		if (m_areasDeviceID.IsEmpty())
+		{
+			return TRUE;
+		}
+		//限定一个时间范围
+		COleDateTime  curTime = COleDateTime::GetTickCount();
+		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
+		CString strCurTime = curTime.Format(_T("%Y-%m-%d %H:%M:%S"));
+		CString strBeginTime = beginTime.Format(_T("%Y-%m-%d 00:00:00"));
+		std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+		CString strSql;
+
+		POSITION posDeviceID = m_areasDeviceID.GetHeadPosition();
+		CString strDeviceID;
+		int sqlNum = 0;
+		while (posDeviceID != NULL)
+		{
+			//获取到的ID
+			strDeviceID = CpublicFun::AscToUnicode(m_areasDeviceID.GetNext(posDeviceID));
+			CStringArray** ppAryDataUpdate =nullptr;
+			//0.同步phone端的 RFid 和 State字段
+			int RFidCount = 0;
+			CList<CStringA> listUpdateSql; //保存需要更新的sql语句
+			CSQLite sqOne;
+			if (sqOne.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+			{
+				
+				BOOL ret = FALSE;
+				strSql.Format(_T("SELECT count(*) FROM `work_task` where DeviceId='%s' and SynchronState='0' and  CreateDate >= '%s' and CreateDate <= '%s';")
+					, strDeviceID, strBeginTime, strCurTime);
+				if (ret = sqOne.QuickSelectDataCount(CpublicFun::UnicodeToAsc(strSql), RFidCount))
+				{
+					if (RFidCount > 0)
+					{
+						CStringA strTemp;
+						CStringArray** ppAryData = new CStringArray*[RFidCount];
+						ppAryDataUpdate = new CStringArray*[RFidCount];
+						strSql.Format(_T("SELECT `Id`,`DeviceId`,`RFId`,`WorkName`,`WorkTemplateId`,`Cycle`,`StartTime`,`Executor`,`State`,`SynchronState`,`CreateDate`,`CreateUserId` ,Level,Frequency FROM `work_task` \
+					where DeviceId='%s' and SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';\
+					"), strDeviceID, strBeginTime, strCurTime);
+						if (ret = sqOne.QuickSelectData(CpublicFun::UnicodeToAsc(strSql), ppAryData, RFidCount))
+						{
+							
+							for (int index = 0; index < RFidCount; ++index)
+							{
+
+								CStringA strTemp = ("Replace  INTO `work_task` (`Id`,`DeviceId`,`RFId`,`WorkName`,`WorkTemplateId`,`Cycle`,`StartTime`,`Executor`,`State`,`SynchronState`,`CreateDate`,`CreateUserId`,Level,Frequency) VALUES(");
+								for (int indEnum = work_task_Id;indEnum < work_task_max-1;++indEnum)
+								{
+									if (indEnum == work_task_SynchronState)
+									{
+										strTemp +=  ("'1',");
+									}
+									else
+										strTemp += "'"+ CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(indEnum)) + "'"+(",");
+								}
+								strTemp += "'" + CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(work_task_max-1)) + "');";
+								listUpdateSql.AddTail(strTemp);
+								ppAryDataUpdate[index] = new CStringArray;
+								ppAryDataUpdate[index]->Add(ppAryData[index]->GetAt(work_task_Id));
+							}
+							for (int index = 0; index < RFidCount; ++index)
+							{
+								delete ppAryData[index];
+							}
+						}
+
+
+						delete[] ppAryData;
+						
+					}
+				}
+				sqOne.CloseDataBase();
+				if (!ret)
+				{
+					CLogRecord::WriteRecordToFile(sqOne.GetLastErrorStr());
+					return FALSE;
+				}
+			}
+			else
+			{
+				CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+				CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+				return FALSE;
+			}
+
+			//更新mysql数据库
+			if (!UpdateMysqlDB(listUpdateSql))
+			{
+				ShowLog(_T("从phone更新RFId和完成状态到服务端work_task失败!"));
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+
+				return FALSE;
+			}
+			else
+			{
+				if (ppAryDataUpdate)
+				{
+					if (sqOne.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+					{
+						//更新phone 端数据 状态
+						if (sqOne.QuickInsertData("update work_task set SynchronState='1' where Id = ?", ppAryDataUpdate, RFidCount, 1, CSQLite::sqlite3_bind))
+						{
+
+						}
+						sqOne.CloseDataBase();
+					}
+					for (int index = 0; index < RFidCount; ++index)
+					{
+						delete ppAryDataUpdate[index];
+					}
+					delete[] ppAryDataUpdate;
+				}
+				
+			}
+
+
+			strSql.Format(_T("SELECT `Id`,`DeviceId`,`RFId`,`WorkName`,`WorkTemplateId`,`Cycle`,`StartTime`,`Executor`,`State`,`SynchronState`,`CreateDate`,`CreateUserId`,Level,Frequency FROM `work_task` \
+		where DeviceId='%s' and SynchronState='0' and State='1' and CreateDate >= '%s' and CreateDate <= '%s';\
+		"), strDeviceID, strBeginTime, strCurTime);
+			//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
+			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+			{
+				int dataCount = vecData.size(), dataNum = 0;
+				if (dataCount > 0)//有数据可以同步
+				{
+					CSQLite sq;
+					if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+					{
+						CStringA strTemp;
+						CStringArray** ppAryData = new CStringArray*[dataCount];
+						int index = 0;
+
+						for each (std::vector<string> varVec in vecData)
+						{
+							//2.构建 更新 字符串 并保留起来,等到 同步完成 后 写入mysql数据库
+							strTemp.Format(("UPDATE work_task set SynchronState ='1' ,State='2' where Id='%s';")
+								, (varVec[work_task_Id].c_str()));
+							m_updateMysqlData.AddTail(strTemp.GetBuffer());
+							ppAryData[index] = new CStringArray;
+							for each (string var in varVec)
+							{
+								ppAryData[index]->Add(CpublicFun::AscToUnicode(var.c_str()));
+							}
+							ppAryData[index]->SetAt(work_task_SynchronState, _T("1"));
+							++index;
+						}
+						dataNum = ppAryData[0]->GetSize();
+						//执行 没有就插入  有就更新
+						CStringA strSql = "Replace  INTO `work_task` (`Id`,`DeviceId`,`RFId`,`WorkName`,`WorkTemplateId`,`Cycle`,`StartTime`,`Executor`,`State`,`SynchronState`,`CreateDate`,`CreateUserId`,Level,Frequency) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+
+						BOOL ret = sq.QuickInsertData(strSql
+							, ppAryData, dataCount, dataNum, CSQLite::sqlite3_bind);
+						for (int index = 0; index < dataCount; ++index)
+						{
+							delete ppAryData[index];
+						}
+
+						delete[] ppAryData;
+
+
+						sq.CloseDataBase();
+
+						if (!ret)
+						{
+							CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+							return FALSE;
+						}
+					}
+					else
+					{
+						CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+						return FALSE;
+					}
+				}
+			}
+			else
+			{
+				CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+				return FALSE;
+			}
+
+			//2.同步状态为 已删除，则删除phone端 
+			strSql.Format(_T("SELECT `Id` FROM  `work_task` where SynchronState='2' and DeviceId ='%s' and CreateDate >= '%s' and CreateDate <= '%s';\
+		"), strDeviceID, strBeginTime, strCurTime);
+			vecData.clear();
+			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+			{
+				int dataCount = vecData.size(), dataNum = 0;
+				if (dataCount > 0)//有数据可以同步
+				{
+					CSQLite sq;
+					if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+					{
+						CStringA strTemp;
+						CStringArray** ppAryData = new CStringArray*[dataCount];
+						int index = 0;
+						for each (std::vector<string> varVec in vecData)
+						{
+
+							ppAryData[index] = new CStringArray;
+							ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[work_template_Id].c_str()));
+
+							++index;
+						}
+						dataNum = ppAryData[0]->GetSize();
+						BOOL ret = sq.QuickDeletData("delete from work_task where Id=?", ppAryData
+							, dataCount, dataNum, CSQLite::sqlite3_bind);
+						if (ret)
+						{
+							for (int index = 0; index < dataCount; ++index)
+							{
+								delete ppAryData[index];
+							}
+						}
+
+						delete[] ppAryData;
+
+
+						sq.CloseDataBase();
+
+						if (!ret)
+						{
+							CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+							CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+							return FALSE;
+						}
+					}
+					else
+					{
+						CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+						return FALSE;
+					}
+				}
+			}
+			else
+			{
+
+				CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+				return FALSE;
+			}
+
+		}
+
+
+		CLogRecord::WriteRecordToFile(_T("同步表[work_task]操作完成!"));
+		return TRUE;
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+}
+
+
+/*同步work_template表数据,
+1.pc端向phone端同步未同步的数据, 更改 同步状态.
+2.表中同步状态为 已删除 则 删除phone端数据
+
+需要根据 选择区域 的设备ID 来找
+strAreaID  选择区域ID 暂时不用
+*/
+BOOL  CWPD_MTP_dataDlg::Synchrodata_work_template(CString const&  strAreaID, CString const& strDBPath)
+{
+	try
+	{
+
+		//所选区域没有设备 
+		if (m_areasDeviceID.IsEmpty())
+		{
+			CLogRecord::WriteRecordToFile(_T("没有数据需要同步,表[work_template]操作完成!"));
+			return TRUE;
+		}
+		//限定一个时间范围
+		COleDateTime  curTime = COleDateTime::GetTickCount();
+		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
+		CString strCurTime = curTime.Format(_T("%Y-%m-%d %H:%M:%S"));
+		CString strBeginTime = beginTime.Format(_T("%Y-%m-%d 00:00:00"));
+		std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+		CString strSql;
+
+		POSITION posDeviceID = m_areasDeviceID.GetHeadPosition();
+		CString strDeviceID;
+		int sqlNum = 0;
+		while (posDeviceID != NULL)
+		{
+			//获取到的ID
+			strDeviceID = CpublicFun::AscToUnicode(m_areasDeviceID.GetNext(posDeviceID));
+
+			strSql.Format(_T("SELECT te.`Id`,te.`DeviceId`,te.`WorkTypeId`,te.ClassName,te.`Number`,te.`ProcessName`,te.`Results`,te.`SynchronState`,te.`CreateDate`,te.`CreateUserId` FROM `work_template` te,work_type tk \
+		where tk.DeviceId='%s'and tk.CreateDate >= '%s' and tk.CreateDate <= '%s' and tk.Id = te.WorkTypeId;\
+		"), strDeviceID, strBeginTime, strCurTime);
+			//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
+			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+			{
+				int dataCount = vecData.size(), dataNum = 0;
+				if (dataCount > 0)//有数据可以同步
+				{
+					CSQLite sq;
+					if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+					{
+						CStringA strTemp;
+						CStringArray** ppAryData = new CStringArray*[dataCount];
+						int index = 0;
+
+						for each (std::vector<string> varVec in vecData)
+						{
+							//2.构建 更新 字符串 并保留起来,等到 同步完成 后 写入mysql数据库
+							strTemp.Format(("UPDATE work_template set SynchronState ='1' where Id='%s';")
+								, (varVec[work_template_Id].c_str()));
+							m_updateMysqlData.AddTail(strTemp.GetBuffer());
+							ppAryData[index] = new CStringArray;
+							for each (string var in varVec)
+							{
+								ppAryData[index]->Add(CpublicFun::AscToUnicode(var.c_str()));
+							}
+							++index;
+						}
+						dataNum = ppAryData[0]->GetSize();
+						//执行 没有就插入  有就更新
+						CStringA strSql = "Replace  INTO `work_template` (`Id`,`DeviceId`,`WorkTypeId`,ClassName,`Number`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`CreateUserId`) VALUES(?,?,?,?,?,?,?,?,?,?);";
+
+						BOOL ret = sq.QuickInsertData(strSql
+							, ppAryData, dataCount, dataNum, CSQLite::sqlite3_bind);
+						for (int index = 0; index < dataCount; ++index)
+						{
+							delete ppAryData[index];
+						}
+						delete[] ppAryData;
+
+
+						sq.CloseDataBase();
+
+						if (!ret)
+						{
+							CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+							return FALSE;
+						}
+					}
+					else
+					{
+						CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+						return FALSE;
+					}
+				}
+			}
+			else
+			{
+				CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+				return FALSE;
+			}
+
+			//2.同步状态为 已删除，则删除phone端 
+			strSql.Format(_T("SELECT `Id` FROM  `work_template` where SynchronState='2' and DeviceId ='%s' and CreateDate >= '%s' and CreateDate <= '%s';\
+		"), strDeviceID, strBeginTime, strCurTime);
+			vecData.clear();
+			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+			{
+				int dataCount = vecData.size(), dataNum = 0;
+				if (dataCount > 0)//有数据可以同步
+				{
+					CSQLite sq;
+					if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+					{
+						CStringA strTemp;
+						CStringArray** ppAryData = new CStringArray*[dataCount];
+						int index = 0;
+						for each (std::vector<string> varVec in vecData)
+						{
+
+							ppAryData[index] = new CStringArray;
+							ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[work_template_Id].c_str()));
+
+							++index;
+						}
+						dataNum = ppAryData[0]->GetSize();
+						BOOL ret = sq.QuickDeletData("delete from work_template where Id=?", ppAryData
+							, dataCount, dataNum, CSQLite::sqlite3_bind);
+						if (ret)
+						{
+							for (int index = 0; index < dataCount; ++index)
+							{
+								delete ppAryData[index];
+							}
+						}
+						delete[] ppAryData;
+
+
+						sq.CloseDataBase();
+
+						if (!ret)
+						{
+							CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+							CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+							return FALSE;
+						}
+					}
+					else
+					{
+						CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+						return FALSE;
+					}
+				}
+			}
+			else
+			{
+
+				CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+				return FALSE;
+			}
+
+			//2.同步状态为 已删除，则删除phone端 
+			strSql.Format(_T("SELECT `Id` FROM  `work_template` where SynchronState='2';\
+		"));
+			vecData.clear();
+			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+			{
+				int dataCount = vecData.size(), dataNum = 0;
+				if (dataCount > 0)//有数据可以同步
+				{
+					CSQLite sq;
+					if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+					{
+						CStringA strTemp;
+						CStringArray** ppAryData = new CStringArray*[dataCount];
+						int index = 0;
+						for each (std::vector<string> varVec in vecData)
+						{
+
+							ppAryData[index] = new CStringArray;
+							ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[work_template_Id].c_str()));
+
+							++index;
+						}
+						dataNum = ppAryData[0]->GetSize();
+						BOOL ret = sq.QuickDeletData("delete from work_template where Id=?", ppAryData
+							, dataCount, dataNum, CSQLite::sqlite3_bind);
+						if (ret)
+						{
+							for (int index = 0; index < dataCount; ++index)
+							{
+								delete ppAryData[index];
+							}
+						}
+
+						delete[] ppAryData;
+
+
+						sq.CloseDataBase();
+
+						if (!ret)
+						{
+							CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+							CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+							return FALSE;
+						}
+					}
+					else
+					{
+						CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+						return FALSE;
+					}
+				}
+			}
+			else
+			{
+
+				CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+				return FALSE;
+			}
+		}
+
+
+		CLogRecord::WriteRecordToFile(_T("同步表[work_template]操作完成!"));
+		return TRUE;
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+
+}
+
+
+/*同步work_type表数据,
+1.pc端向phone端同步未同步的数据, 更改 同步状态.
+2.表中同步状态为 已删除 则 删除phone端数据
+
+strAreaID  选择区域ID 暂时不用
+*/
+BOOL  CWPD_MTP_dataDlg::Synchrodata_work_type(CString const&  strAreaID, CString const& strDBPath)
+{
+	try
+	{
+		//所选区域没有设备 
+		if (m_areasDeviceID.IsEmpty())
+		{
+			CLogRecord::WriteRecordToFile(_T("没有数据需要同步,表[work_template]操作完成!"));
+			return TRUE;
+		}
+
+		//限定一个时间范围
+		COleDateTime  curTime = COleDateTime::GetTickCount();
+		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
+		CString strCurTime = curTime.Format(_T("%Y-%m-%d %H:%M:%S"));
+		CString strBeginTime = beginTime.Format(_T("%Y-%m-%d 00:00:00"));
+		std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+		CString strSql;
+		POSITION posDeviceID = m_areasDeviceID.GetHeadPosition();
+		CString strDeviceID;
+		int sqlNum = 0;
+		while (posDeviceID != NULL)
+		{
+			//获取到的ID
+			strDeviceID = CpublicFun::AscToUnicode(m_areasDeviceID.GetNext(posDeviceID));
+			strSql.Format(_T("SELECT `Id`,`Name`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`CreateUserId`,DeviceId FROM `work_type`\
+		 where SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s' and DeviceId='%s';\
+		"), strBeginTime, strCurTime,strDeviceID);
+			//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
+			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+			{
+				int dataCount = vecData.size(), dataNum = 0;
+				if (dataCount > 0)//有数据可以同步
+				{
+					CSQLite sq;
+					if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+					{
+						CStringA strTemp;
+						CStringArray** ppAryData = new CStringArray*[dataCount];
+						int index = 0;
+
+						for each (std::vector<string> varVec in vecData)
+						{
+							//2.构建 更新 字符串 并保留起来,等到 同步完成 后 写入mysql数据库
+							strTemp.Format(("UPDATE work_type set SynchronState ='1' where Id='%s';")
+								, (varVec[work_type_Id].c_str()));
+							m_updateMysqlData.AddTail(strTemp.GetBuffer());
+							ppAryData[index] = new CStringArray;
+							for each (string var in varVec)
+							{
+								ppAryData[index]->Add(CpublicFun::AscToUnicode(var.c_str()));
+							}
+							++index;
+						}
+						dataNum = ppAryData[0]->GetSize();
+						//执行 没有就插入  有就更新
+						CStringA strSql = "Replace  INTO `work_type` (`Id`,`Name`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`CreateUserId`,DeviceId) VALUES(?,?,?,?,?,?,?,?);";
+
+						BOOL ret = sq.QuickInsertData(strSql
+							, ppAryData, dataCount, dataNum, CSQLite::sqlite3_bind);
+						for (int index = 0; index < dataCount; ++index)
+						{
+							delete ppAryData[index];
+						}
+						delete[] ppAryData;
+
+
+						sq.CloseDataBase();
+
+						if (!ret)
+						{
+							CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+							return FALSE;
+						}
+					}
+					else
+					{
+						CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+						return FALSE;
+					}
+				}
+			}
+			else
+			{
+				CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+				return FALSE;
+			}
+
+			//2.同步状态为 已删除，则删除phone端 
+			strSql.Format(_T("SELECT `Id` FROM  `work_type` where SynchronState='2' and CreateDate >= '%s' and CreateDate <= '%s' and DeviceId='%s';\
+		"), strBeginTime, strCurTime,strDeviceID);
+			vecData.clear();
+			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+			{
+				int dataCount = vecData.size(), dataNum = 0;
+				if (dataCount > 0)//有数据可以同步
+				{
+					CSQLite sq;
+					if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+					{
+						CStringA strTemp;
+						CStringArray** ppAryData = new CStringArray*[dataCount];
+						int index = 0;
+						for each (std::vector<string> varVec in vecData)
+						{
+
+							ppAryData[index] = new CStringArray;
+							ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[work_type_Id].c_str()));
+
+							++index;
+						}
+						dataNum = ppAryData[0]->GetSize();
+						BOOL ret = sq.QuickDeletData("delete from work_type where Id=?", ppAryData
+							, dataCount, dataNum, CSQLite::sqlite3_bind);
+						if (ret)
+						{
+							for (int index = 0; index < dataCount; ++index)
+							{
+								delete ppAryData[index];
+							}
+						}
+						delete[] ppAryData;
+
+
+						sq.CloseDataBase();
+
+						if (!ret)
+						{
+							CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+							CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+							return FALSE;
+						}
+					}
+					else
+					{
+						CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+						return FALSE;
+					}
+				}
+			}
+			else
+			{
+
+				CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+				return FALSE;
+			}
+			
+		}
+		CLogRecord::WriteRecordToFile(_T("同步表[work_type]操作完成!"));
+		return TRUE;
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+	
+}
+
+
+/*同步device_info表数据,
+1.phone端 查询RFid 同步到mysql 数据库中
+2.pc端向phone端同步未同步的数据, 更改 同步状态.
+3.表中同步状态为 已删除 则 删除phone端数据
+3.记录查询到的设备ID 方便查询 后续的表  中 对应设备的数据
+strAreaID  选择区域ID
+*/
+BOOL  CWPD_MTP_dataDlg::Synchrodata_device_info(CString const&  strAreaID,CString const& strDBPath)
+{
+	try
+	{
+		COleDateTime  curTime = COleDateTime::GetTickCount();
+		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
+		CString strCurTime = curTime.Format(_T("%Y-%m-%d %H:%M:%S"));
+		CString strBeginTime = beginTime.Format(_T("%Y-%m-%d 00:00:00"));
+
+		//0.同步phone端的 RFid 字段
+		CString strSql;
+		CList<CStringA> listUpdateSql; //保存需要更新的sql语句
+		CSQLite sqOne;
+		if (sqOne.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+		{
+			int RFidCount = 0;
+			BOOL ret = FALSE;
+			strSql.Format(_T("SELECT count(*) FROM `device_info` where AreaId='%s' and CreateDate >= '%s' and CreateDate <= '%s';")
+				, strAreaID, strBeginTime, strCurTime);
+			if (ret = sqOne.QuickSelectDataCount(CpublicFun::UnicodeToAsc(strSql), RFidCount))
+			{
+				if (RFidCount > 0)
+				{
+					CStringA strTemp;
+					CStringArray** ppAryData = new CStringArray*[RFidCount];
+
+					strSql.Format(_T("SELECT `Id`,`RFID` FROM `device_info` where AreaId='%s' and CreateDate >= '%s' and CreateDate <= '%s';")
+						, strAreaID, strBeginTime, strCurTime);
+
+					if (ret = sqOne.QuickSelectData(CpublicFun::UnicodeToAsc(strSql), ppAryData, RFidCount))
+					{
+						for (int index = 0; index < RFidCount; ++index)
+						{
+							strTemp.Format(("UPDATE device_info set RFID ='%s' where Id='%s';")
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(device_info_RFID))
+								, CpublicFun::UnicodeToAsc(ppAryData[index]->GetAt(device_info_Id)));
+							listUpdateSql.AddTail(strTemp);
+						}
+						for (int index = 0; index < RFidCount; ++index)
+						{
+							delete ppAryData[index];
+						}
+					}
+
+
+					delete[] ppAryData;
+
+				}
+			}
+			sqOne.CloseDataBase();
+			if (!ret)
+			{
+				CLogRecord::WriteRecordToFile(sqOne.GetLastErrorStr());
+				return FALSE;
+			}
+		}
+		else
+		{
+			CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+			CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+			return FALSE;
+		}
+
+		//更新mysql数据库
+		if (!UpdateMysqlDB(listUpdateSql))
+		{
+			ShowLog(_T("从phone更新RFId到服务端失败!"));
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+			return FALSE;
+		}
+
+
+		std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+
+		strSql.Format(_T("SELECT `Id`,`RFID`,`Name`,`Picture`,`TypeId`,`Info`,`AreaId`,\
+		`SynchronState`,`CreateDate`,`CreateUserId` FROM `device_info` where AreaId='%s'and SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';")
+			, strAreaID, strBeginTime, strCurTime);
+		//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
+		if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+		{
+			int dataCount = vecData.size(), dataNum = 0;
+			if (dataCount > 0)//有数据可以同步
+			{
+				CSQLite sq;
+				if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+				{
+					CStringA strTemp;
+					CStringArray** ppAryData = new CStringArray*[dataCount];
+					int index = 0;
+
+					for each (std::vector<string> varVec in vecData)
+					{
+						//2.构建 更新 字符串 并保留起来,等到 同步完成 后 写入mysql数据库
+						strTemp.Format(("UPDATE device_info set SynchronState ='1' where Id='%s';")
+							, (varVec[device_info_Id].c_str()));
+						m_updateMysqlData.AddTail(strTemp.GetBuffer());
+						//m_areasDeviceID.AddTail(varVec[device_info_Id].c_str());
+						ppAryData[index] = new CStringArray;
+						for each (string var in varVec)
+						{
+							ppAryData[index]->Add(CpublicFun::AscToUnicode(var.c_str()));
+						}
+						ppAryData[index]->SetAt(device_info_SynchronState, _T("1"));
+						++index;
+					}
+					dataNum = ppAryData[0]->GetSize();
+					//执行 没有就插入  有就更新
+					CStringA strSql = "Replace  INTO `device_info` (`Id`,`RFID`,`Name`,`Picture`,`TypeId`,`Info`,`AreaId`,`SynchronState`,`CreateDate`,`CreateUserId` ) VALUES(?,?,?,?,?,?,?,?,?,?);";
+					//strSql = "insert into device_type(Id,Name) values (?,?);";
+					BOOL ret = sq.QuickInsertData(strSql
+						, ppAryData, dataCount, dataNum, CSQLite::sqlite3_bind);
+
+					for (int index = 0; index < dataCount; ++index)
+					{
+						delete ppAryData[index];
+					}
+
+					delete[] ppAryData;
+
+
+					sq.CloseDataBase();
+
+					if (!ret)
+					{
+						CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+						return FALSE;
+					}
+				}
+				else
+				{
+					CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+					CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+					return FALSE;
+				}
+			}
+		}
+		else
+		{
+			CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+			return FALSE;
+		}
+
+		//2.同步状态为 已删除，则删除phone端 
+		strSql.Format(_T("SELECT `Id` FROM `device_info` where AreaId='%s' and SynchronState='2' \
+	and CreateDate >= '%s' and CreateDate <= '%s';"), strAreaID, strBeginTime, strCurTime);
+		vecData.clear();
+		if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+		{
+			int dataCount = vecData.size(), dataNum = 0;
+			if (dataCount > 0)//有数据可以同步
+			{
+				CSQLite sq;
+				if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+				{
+					CStringA strTemp;
+					CStringArray** ppAryData = new CStringArray*[dataCount];
+					int index = 0;
+					for each (std::vector<string> varVec in vecData)
+					{
+						// 					strTemp.Format(("UPDATE device_type set SynchronState ='1' where Id='%s';")
+						// 						, (varVec[device_type_Id].c_str()));
+						// 					m_updateMysqlData.AddTail(strTemp.GetBuffer());
+						ppAryData[index] = new CStringArray;
+						ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[device_type_Id].c_str()));
+
+						++index;
+					}
+					dataNum = ppAryData[0]->GetSize();
+					BOOL ret = sq.QuickDeletData("delete from device_info where Id=?", ppAryData
+						, dataCount, dataNum, CSQLite::sqlite3_bind);
+					for (int index = 0; index < dataCount; ++index)
+					{
+						delete ppAryData[index];
+					}
+					delete[] ppAryData;
+
+
+					sq.CloseDataBase();
+
+					if (!ret)
+					{
+						CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+						return FALSE;
+					}
+				}
+				else
+				{
+					CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+					CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+					return FALSE;
+				}
+			}
+		}
+		else
+		{
+
+			CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+			return FALSE;
+		}
+		CLogRecord::WriteRecordToFile(_T("同步表[device_info]操作完成!"));
+		return TRUE;
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+	
+}
+
+/*同步device_type表数据,
+1.pc端向phone端同步未同步的数据, 更改 同步状态.
+2.表中同步状态为 已删除 则 删除phone端数据
+
+strAreaID  选择区域ID
+*/
+BOOL  CWPD_MTP_dataDlg::Synchrodata_device_type(CString const&  strAreaID, CString const& strDBPath)
+{
+	try
+	{
+		//限定一个时间范围
+		COleDateTime  curTime = COleDateTime::GetTickCount();
+		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
+		CString strCurTime = curTime.Format(_T("%Y-%m-%d %H:%M:%S"));
+		CString strBeginTime = beginTime.Format(_T("%Y-%m-%d 00:00:00"));
+		std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+		CString strSql;
+		strSql.Format(_T("SELECT `device_type`.`Id`,\
+		`Name`,\
+		`ParentId`,\
+		`AreaId`,\
+		`SynchronState`,\
+		`CreateDate`,\
+		`CreateUserId`\
+		FROM `device_type` where AreaId='%s' and SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';\
+		"), strAreaID, strBeginTime, strCurTime);
+		//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
+		if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+		{
+			int dataCount = vecData.size(), dataNum = 0;
+			if (dataCount > 0)//有数据可以同步
+			{
+				CSQLite sq;
+				if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+				{
+					CStringA strTemp;
+					CStringArray** ppAryData = new CStringArray*[dataCount];
+					int index = 0;
+
+					for each (std::vector<string> varVec in vecData)
+					{
+						//2.构建 更新 字符串 并保留起来,等到 同步完成 后 写入mysql数据库
+						strTemp.Format(("UPDATE device_type set SynchronState ='1' where Id='%s';")
+							, (varVec[device_type_Id].c_str()));
+						m_updateMysqlData.AddTail(strTemp.GetBuffer());
+						ppAryData[index] = new CStringArray;
+						for each (string var in varVec)
+						{
+							ppAryData[index]->Add(CpublicFun::AscToUnicode(var.c_str()));
+						}
+						++index;
+					}
+					dataNum = ppAryData[0]->GetSize();
+					//执行 没有就插入  有就更新
+					CStringA strSql = "Replace  INTO `device_type` (`Id`,`Name`,`ParentId`,`AreaId`,`SynchronState`,`CreateDate`,`CreateUserId`) VALUES(?,?,?,?,?,?,?);";
+					//strSql = "insert into device_type(Id,Name) values (?,?);";
+					BOOL ret = sq.QuickInsertData(strSql
+						, ppAryData, dataCount, dataNum, CSQLite::sqlite3_bind);
+					for (int index = 0; index < dataCount; ++index)
+					{
+						delete ppAryData[index];
+					}
+					delete[] ppAryData;
+
+
+					sq.CloseDataBase();
+
+					if (!ret)
+					{
+						CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+						return FALSE;
+					}
+				}
+				else
+				{
+					CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+					CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+					return FALSE;
+				}
+			}
+		}
+		else
+		{
+			CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+			return FALSE;
+		}
+
+		//2.同步状态为 已删除，则删除phone端 
+		strSql.Format(_T("SELECT `Id` FROM  `device_type` where AreaId='%s' and SynchronState='2';"), strAreaID);
+		vecData.clear();
+		if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+		{
+			int dataCount = vecData.size(), dataNum = 0;
+			if (dataCount > 0)//有数据可以同步
+			{
+				CSQLite sq;
+				if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+				{
+					CStringA strTemp;
+					CStringArray** ppAryData = new CStringArray*[dataCount];
+					int index = 0;
+					for each (std::vector<string> varVec in vecData)
+					{
+						// 					strTemp.Format(("UPDATE device_type set SynchronState ='1' where Id='%s';")
+						// 						, (varVec[device_type_Id].c_str()));
+						// 					m_updateMysqlData.AddTail(strTemp.GetBuffer());
+						ppAryData[index] = new CStringArray;
+						ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[device_type_Id].c_str()));
+
+						++index;
+					}
+					dataNum = ppAryData[0]->GetSize();
+					BOOL ret = sq.QuickDeletData("delete from device_type where Id=?", ppAryData
+						, dataCount, dataNum, CSQLite::sqlite3_bind);
+					for (int index = 0; index < dataCount; ++index)
+					{
+						delete ppAryData[index];
+					}
+					delete[] ppAryData;
+
+
+					sq.CloseDataBase();
+
+					if (!ret)
+					{
+						CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+						return FALSE;
+					}
+				}
+				else
+				{
+					CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+					CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+					return FALSE;
+				}
+			}
+		}
+		else
+		{
+
+			CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+			return FALSE;
+		}
+		CLogRecord::WriteRecordToFile(_T("同步表[device_type]操作完成!"));
+		return TRUE;
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+	
+}
+
+//初始化该区域的设备缓存
+BOOL CWPD_MTP_dataDlg::Init_area_devices(CString const& strAreaID)
+{
+	try
+	{
+		//限定一个时间范围
+		COleDateTime  curTime = COleDateTime::GetTickCount();
+		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
+		CString strCurTime = curTime.Format(_T("%Y-%m-%d %H:%M:%S"));
+		CString strBeginTime = beginTime.Format(_T("%Y-%m-%d 00:00:00"));
+		std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+		CString strSql;
+		strSql.Format(_T("SELECT `Id` FROM `device_info` where AreaId='%s' and CreateDate >= '%s' and CreateDate <= '%s';")
+			, strAreaID, strBeginTime, strCurTime);
+		//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
+		if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+		{
+			int dataCount = vecData.size(), dataNum = 0;
+			if (dataCount > 0)//有数据可以同步
+			{
+				for each (std::vector<string> varVec in vecData)
+				{
+					//2.构建 更新 字符串 并保留起来,等到 同步完成 后 写入mysql数据库
+
+					m_areasDeviceID.AddTail(varVec[0].c_str());
+
+				}
+			}
+		}
+		else
+		{
+			CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+			return FALSE;
+		}
+		return TRUE;
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+	
+}
+
+/*同步sys_user表数据,
+1.pc端向phone端同步未同步的数据, 更改 同步状态.
+2.表中同步状态为 已删除 则 删除phone端数据
+
+需要根据 选择区域 的设备ID 来找
+strAreaID  选择区域ID 暂时不用
+*/
+BOOL  CWPD_MTP_dataDlg::Synchrodata_sys_user(CString const&  strAreaID, CString const& strDBPath)
+{
+	try
+	{
+
+		std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+		CString strSql;
+
+		POSITION posDeviceID = m_areasDeviceID.GetHeadPosition();
+		CString strDeviceID;
+		int sqlNum = 0;
+
+			strSql.Format(_T("SELECT u.id,u.user_name,u.real_name,u.password,r.role_name,a.Name, u.SynchronState ,u.pwd_key FROM `sys_user` u , sys_role r, areas a\
+		where  u.SynchronState='0' and u.data_areas = '%s' and u.data_areas = a.Id and u.role_id = r.id;\
+		"), strAreaID);
+			//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
+			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+			{
+				int dataCount = vecData.size(), dataNum = 0;
+				if (dataCount > 0)//有数据可以同步
+				{
+					CSQLite sq;
+					if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+					{
+						CStringA strTemp;
+						CStringArray** ppAryData = new CStringArray*[dataCount];
+						int index = 0;
+
+						for each (std::vector<string> varVec in vecData)
+						{
+							//2.构建 更新 字符串 并保留起来,等到 同步完成 后 写入mysql数据库
+							strTemp.Format(("UPDATE sys_user set SynchronState ='1' where id='%s';")
+								, (varVec[sys_user_Id].c_str()));
+							m_updateMysqlData.AddTail(strTemp.GetBuffer());
+							ppAryData[index] = new CStringArray;
+							for each (string var in varVec)
+							{
+								ppAryData[index]->Add(CpublicFun::AscToUnicode(var.c_str()));
+							}
+							++index;
+						}
+						dataNum = ppAryData[0]->GetSize();
+						//执行 没有就插入  有就更新
+						CStringA strSql = "Replace  INTO `user_table` (`Id`,`LoginName`,`Name`,`Password`,`Role`,`AreaName`,`SynchronState`,pwd_key) VALUES(?,?,?,?,?,?,?,?);";
+
+						BOOL ret = sq.QuickInsertData(strSql
+							, ppAryData, dataCount, dataNum, CSQLite::sqlite3_bind);
+						for (int index = 0; index < dataCount; ++index)
+						{
+							delete ppAryData[index];
+						}
+						delete[] ppAryData;
+
+
+						sq.CloseDataBase();
+
+						if (!ret)
+						{
+							CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+							return FALSE;
+						}
+					}
+					else
+					{
+						CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+						return FALSE;
+					}
+				}
+			}
+			else
+			{
+				CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+				return FALSE;
+			}
+
+			//2.同步状态为 已删除，则删除phone端 
+			strSql.Format(_T("SELECT `id` FROM  `sys_user` where SynchronState='2' and data_areas='%s';\
+		"), strAreaID);
+			vecData.clear();
+			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+			{
+				int dataCount = vecData.size(), dataNum = 0;
+				if (dataCount > 0)//有数据可以同步
+				{
+					CSQLite sq;
+					if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+					{
+						CStringA strTemp;
+						CStringArray** ppAryData = new CStringArray*[dataCount];
+						int index = 0;
+						for each (std::vector<string> varVec in vecData)
+						{
+
+							ppAryData[index] = new CStringArray;
+							ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[work_template_Id].c_str()));
+
+							++index;
+						}
+						dataNum = ppAryData[0]->GetSize();
+						BOOL ret = sq.QuickDeletData("delete from user_table where id=?", ppAryData
+							, dataCount, dataNum, CSQLite::sqlite3_bind);
+						if (ret)
+						{
+							for (int index = 0; index < dataCount; ++index)
+							{
+								delete ppAryData[index];
+							}
+						}
+						delete[] ppAryData;
+
+
+						sq.CloseDataBase();
+
+						if (!ret)
+						{
+							CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+							CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+							return FALSE;
+						}
+					}
+					else
+					{
+						CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+						return FALSE;
+					}
+				}
+			}
+			else
+			{
+
+				CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+				return FALSE;
+			}
+
+		
+
+
+		CLogRecord::WriteRecordToFile(_T("同步表[sys_user]操作完成!"));
+		return TRUE;
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+
+}
+
+
+/************************************************************************/
+/*
+	执行流程:	1.先从中间sqlite 数据库中 获取需要更新的数据,插入到pc端mysql数据库中,
+				2.把pc端mysql数据库中的 需要更新的数据 拿出来 插入到中间sqlite数据库中
+
+				同步数据 分区域处理 .只同步选定的区域
+				功能实现 分表处理.
+*/                                                                     
+/************************************************************************/
+BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
+{
+	try
+	{
+		//初始化中间变量
+		m_updateMysqlData.RemoveAll();
+
+		m_areasDeviceID.RemoveAll();
+
+		//连接mysql数据库
+		if (CMyDataBase::GetInstance()->InitMyDataBase(m_mysqlLogin))
+		{
+			//选择的当前 区域ID
+			CString strAreaID;
+			//CString strAreaName;
+			//m_combox_chooseArea.GetLBText(m_combox_chooseArea.GetCurSel(), strAreaName);
+
+			strAreaID = m_mapTreeCtrToID[m_treeCtrl_curItem];
+
+
+			ASSERT(!strAreaID.IsEmpty());
+
+			BOOL ret = TRUE;
+			
+			//0.初始化该区域的设备缓存
+			if (!Init_area_devices(strAreaID))
+			{
+				ShowLog(_T("初始化该区域的设备缓存失败-同步失败!"));
+				ret = FALSE;
+			}
+
+
+			//1.同步表 device_type 信息
+			if (!Synchrodata_device_type(strAreaID, strPath))
+			{
+				ShowLog(_T("设备类型表(device_type) -同步失败!"));
+				ret = FALSE;
+
+			}
+			//2.同步表 device_info
+			if (!Synchrodata_device_info(strAreaID, strPath))
+			{
+				ShowLog(_T("设备类型表(device_info) -同步失败!"));
+				ret = FALSE;
+
+			}
+			//3.同步表 work_template
+			//模板表 关联work_type表 只同步 work_type 需要同步的任务 关联的模板
+			if (!Synchrodata_work_template(strAreaID, strPath))
+			{
+				ShowLog(_T("设备类型表(work_template) -同步失败!"));
+				ret = FALSE;
+
+			}
+			//4.同步表 work_type
+			if (!Synchrodata_work_type(strAreaID,strPath))
+			{
+				ShowLog(_T("设备类型表(work_type) -同步失败!"));
+				ret = FALSE;
+
+			}
+		
+
+			//5.同步表 work_task
+			if (!Synchrodata_work_task(strAreaID, strPath))
+			{
+				ShowLog(_T("设备类型表(work_task) -同步失败!"));
+				ret = FALSE;
+
+			}
+
+			//6.同步表 work_record
+			if (!Synchrodata_work_record(strAreaID, strPath))
+			{
+				ShowLog(_T("设备类型表(work_record) -同步失败!"));
+				ret = FALSE;
+
+			}
+			//7.同步表 sys_user 信息
+			if (!Synchrodata_sys_user(strAreaID, strPath))
+			{
+				ShowLog(_T("设备类型表(sys_user) -同步失败!"));
+				ret = FALSE;
+
+			}
+			
+			//00.同步完成后,更改mysql 同步状态
+			if (!UpdateMysqlDB(m_updateMysqlData))
+			{
+				ShowLog(_T("更新服务端数据库 同步状态失败 -同步失败!"));
+				ret = FALSE;
+
+			}
+			CMyDataBase::GetInstance()->Close();
+			return ret;
+		}
+		else
+		{
+			ShowLog(_T("连接服务端数据库失败!"));
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+			return FALSE;
+		}
+
+		
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+}
+
+
+//成功将pc端mysql数据库 最新数据 写入中间sqlite数据库, 复制该数据库到 phone端
+BOOL  CWPD_MTP_dataDlg::BeginPcToPhone(IPortableDevice* & pDevice)
+{
+	BOOL ret = FALSE;
+
+	WCHAR buffErr[1024] = { 0 };
+	//删除手持设备上的phone.db
+	DeleteDataFromDevice(pDevice, gFileID);
+// 	UpdateContentOnDevice(pDevice,
+// 		WPD_CONTENT_TYPE_FOLDER,
+// 		L"*.*\0*.*\0\0",
+// 		nullptr, gDirID);
+	//拷贝phone.db到手持设备上
+	//gFilePath = _T(".//phone.db");
+	
+	ret = TransferDataToDevice(pDevice, WPD_CONTENT_TYPE_ALL, gDirID,gFilePath, buffErr);
+	
+	CLogRecord::WriteRecordToFile(buffErr);
+	//删除当前的中间文件
+	DeleteFile(gFilePath);
+
+	return ret;
+}
+
+//等待设备 连接,连接后 获取指定路径下的文件,并备份到pc端
+BOOL CWPD_MTP_dataDlg::BeginPhoneToPc(IPortableDevice* & pDevice)
+{
+	
+	int curIndex = m_combox_devices.GetCurSel();
+	if (curIndex < 0)
+	{
+		ShowLog(_T("请选择一项设备"));
+		return FALSE;
+	}
+	ASSERT(curIndex >= 0);
+	ASSERT(curIndex < m_strDevicesID.GetSize());
+	CString strDevID = m_strDevicesID.GetAt(curIndex); //当前选择的设备ID
+													   //1.等待设备接入
+													   //2.获取phone端的设备指定路径下的sqlite设备 
+													   //(1)备份到本地 (2)获取库中 需要同步的数据
+	HRESULT hr = S_OK;
+
+	gDirID = _T(""), gFileID = _T("");
+	//gDevice = nullptr;
+	gFilePath = _T(".//") + m_fileName; //中间文件路径
+	////////////////////////////////////
+	WCHAR buffErr[1024] = { 0 };
+	if (!OpenDevice(strDevID, &pDevice) && pDevice == nullptr)
+	{
+		ShowLog(_T("设备连接失败,获取设备失败!"));
+		return FALSE;
+	}
+
+
+	IPortableDeviceContent*  content=nullptr;
+	hr = pDevice->Content(&content);
+	if (FAILED(hr))
+	{
+		CString strLog;
+		strLog.Format(L"! Failed to get IPortableDeviceContent from IPortableDevice, hr = 0x%lx\n", hr);
+		ShowLog(strLog);
+		return FALSE;
+	}
+
+	CString dirID, fileID; //最后一个文件夹 ID 和 最终的数据库文件ID
+	//获取sqlite数据库文件的ID
+	CString strPath;
+	for (int index =0; index < m_aryFileName.GetSize();++index)
+	{
+		strPath += m_aryFileName.GetAt(index) + _T("#");
+		if (index ==0) //第一次
+		{
+			PCWSTR objID = getSpecifiedObjectID(pDevice, m_aryFileName.GetAt(index));
+			dirID = objID;
+			continue;;
+		}
+	
+		if (index == 1) //第二次
+		{
+			PCWSTR objID = getIDByParentID(pDevice, content, dirID, m_aryFileName.GetAt(index));
+			fileID = objID;
+			continue;
+		}
+		//大于2次之后
+		PCWSTR objID = getIDByParentID(pDevice, content, fileID, m_aryFileName.GetAt(index));
+
+		dirID = fileID;
+		fileID = objID;
+	}
+	if (dirID.IsEmpty() || fileID.IsEmpty())
+	{
+		ShowLog(_T("丢失数据库文件,请确保文件存在!----"));
+		if (content)
+		{
+			content->Release();
+		}
+		return FALSE;
+	}
+	//保存当前使用文件ID
+	gDirID = dirID;
+
+	gFileID = fileID;
+	
+	TransforDataFromDevice(pDevice, fileID);
+	//(1)先删除本地的中间文件, 复制phone 端文件, 备份sqlite 数据库 
+
+
+	CTime Time = CTime::GetTickCount();
+	CString strName = Time.Format(_T("%Y-%m-%d-%H-%M"));
+	BOOL bRet = CopyFile(_T(".//") + m_fileName, _T(".//backUp//") + strName, FALSE);
+	gFilePath = _T(".//") + m_fileName; //中间文件路径
+	ShowLog(_T("正在同步..."));
+	if (content)
+	{
+		content->Release();
+	}
+
+	return TRUE;
+}
+/************************************************************************/
+/*
+注意服务:WPDBusEnum  (Portable Device Enumerator Service)
+
+同步功能:
+	说明:本地电脑有个mysql数据库,usb连接的android手机端 有一个sqlite 数据库.
+同步功能分为1.phone端 同步sqlite中最新的数据 到pc端 mysql数据库 2.pc端 mysql 中最新的数据 同步到 
+phone端 sqlite 数据库中.
+
+	执行流程:1.线程等待 phone设备通过usb方式连接 pc端. 2.等到正确的设备连入,获取phone端的
+	sqlite 数据库,拷贝到pc端.(1)做备份.以时间节点为名字.(2)将sqlite库中最新的数据写入pc端mysql数据库
+	(3)获取pc端的mysql数据库中 需要更新的数据.并写入sqlite.(4)删除phone端的sqlite数据库,把新的sqlite数据库
+	复制过去.
+
+*/
+/************************************************************************/
+UINT MyControllingFunction(LPVOID pParam)
+{
+	//界面指针
+	CWPD_MTP_dataDlg* pDlg = (CWPD_MTP_dataDlg*)pParam;
+	IPortableDevice* gDevice = nullptr; //正在使用的设备
+
+	/************************************************************************/
+#ifdef DEBUG
+	CTime tm;
+	tm = CTime::GetCurrentTime();
+	pDlg->ShowLog(tm.Format(_T("%H%M%S")));
+#endif
+#ifdef MYTEST
+	gFilePath = _T(".//phone.db");
+#endif
+	//1.备份phone数据到 pc本地
+	BOOL ret = FALSE;
+	 if (pDlg->BeginPhoneToPc(gDevice))
+	 {
+		 
+		 //2.同步最新的sqlite数据 到pc mysql数据库  并获取最新的mysql数据 写入sqlite 数据库
+		 if (pDlg->BeginSwitchData(gFilePath))
+		 {
+			// 3.更新phone端的数据库  把pc端 中间sqlite数据库 拷贝到 phone端指定位置
+			 ret =  pDlg->BeginPcToPhone(gDevice);
+		 }
+	 }
+	 if (gDevice)
+	 {
+		 gDevice->Close();
+		 gDevice->Release();
+	 }
+
+	
+
+	pDlg->m_threadFlag = FALSE;
+	if (ret)
+	{
+		pDlg->ShowLog(_T("同步完成..."));
+#ifdef DEBUG
+		tm = CTime::GetCurrentTime();
+		pDlg->ShowLog(tm.Format(_T("%H%M%S")));
+#endif
+	}
+	else
+		pDlg->ShowLog(_T("同步失败..."));
+	return 0;
+	/************************************************************************/
+}
+void CWPD_MTP_dataDlg::OnBnClickedBtTophone()
+{	
+	//判断 树控件选择 为叶节点
+	if (nullptr == m_treeCtrl_curItem)
+	{
+		ShowLog(_T("请选择一项区域"));
+		return;
+	}
+	//测试
+#ifdef MYTEST
+	//gFilePath = _T(".//phone.db");
+	BeginSwitchData(gFilePath);
+	return;
+#endif
+
+	if (!m_threadFlag)
+	{
+		// TODO: 在此添加控件通知处理程序代码
+		AfxBeginThread(MyControllingFunction, this);
+		m_threadFlag = TRUE;
+	}
+	else
+		ShowLog(_T("操作过于频繁!"));
+}
+LRESULT CWPD_MTP_dataDlg::OnMyDeviceChange(WPARAM wParam, LPARAM lParam)
+{
+	if (DBT_DEVICEARRIVAL == wParam || DBT_DEVICEREMOVECOMPLETE == wParam) {
+		PDEV_BROADCAST_HDR pHdr = (PDEV_BROADCAST_HDR)lParam;
+		PDEV_BROADCAST_DEVICEINTERFACE pDevInf;
+		PDEV_BROADCAST_HANDLE pDevHnd;
+		PDEV_BROADCAST_OEM pDevOem;
+		PDEV_BROADCAST_PORT pDevPort;
+		PDEV_BROADCAST_VOLUME pDevVolume;
+		switch (pHdr->dbch_devicetype) {
+		case DBT_DEVTYP_DEVICEINTERFACE:
+		{
+			//需要的操作  
+			ASSERT(m_threadShowDevs);
+			ResumeThread(m_threadShowDevs->m_hThread);
+			
+		}
+		break;
+
+		case DBT_DEVTYP_HANDLE:
+			pDevHnd = (PDEV_BROADCAST_HANDLE)pHdr;
+			break;
+
+		case DBT_DEVTYP_OEM:
+			pDevOem = (PDEV_BROADCAST_OEM)pHdr;
+			break;
+
+		case DBT_DEVTYP_PORT:
+			pDevPort = (PDEV_BROADCAST_PORT)pHdr;
+			break;
+
+		case DBT_DEVTYP_VOLUME:
+			pDevVolume = (PDEV_BROADCAST_VOLUME)pHdr;
+			break;
+		}
+	}
+	return 0;
+
+
+}
+
+void CWPD_MTP_dataDlg::OnCbnSelchangeComboxDevices()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CString strRee = _T("");
+	return;
+}
+
+
+void CWPD_MTP_dataDlg::OnInputDeviceChange(unsigned short nState, HANDLE hDevice)
+{
+	// 此功能要求 Windows Vista 或更高版本。
+	// _WIN32_WINNT 符号必须 >= 0x0600。
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+
+	CDialogEx::OnInputDeviceChange(nState, hDevice);
+}
+
+
+void CWPD_MTP_dataDlg::OnOK()
+{
+	// TODO: 在此添加专用代码和/或调用基类
+	
+	CDialogEx::OnOK();
+}
+
+
+void CWPD_MTP_dataDlg::OnClose()
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+
+	//若存在中间文件,则删除
+	if (!gFilePath.IsEmpty())
+	{
+		//删除当前的中间文件
+		DeleteFile(gFilePath);
+	}
+	//关闭打开的设备
+
+
+	m_threadFlag = FALSE;
+	ASSERT(m_threadShowDevs);
+	ResumeThread(m_threadShowDevs->m_hThread);
+	//CMyDataBase::GetInstance()->Close();
+	CDialogEx::OnClose();
+}
+
+
+void CWPD_MTP_dataDlg::OnLbnDblclkListMsg()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	m_listShow.ResetContent();
+}
+
+
+void CWPD_MTP_dataDlg::OnTvnSelchangedTreeAreas(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMTREEVIEW pNMTreeView = reinterpret_cast<LPNMTREEVIEW>(pNMHDR);
+	// TODO: 在此添加控件通知处理程序代码
+	*pResult = 0;
+	m_treeCtrl_curItem = pNMTreeView->itemNew.hItem;
+	m_static_current_area.SetWindowText(m_mapArea[m_mapTreeCtrToID[m_treeCtrl_curItem]]);
+}
+
+
+void CWPD_MTP_dataDlg::OnBnClickedRefreshDevs()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	ASSERT(m_threadShowDevs);
+	ResumeThread(m_threadShowDevs->m_hThread);
+	ShowLog(_T("扫描设备信息,若失败,请重新插拔一次设备!"));
+}

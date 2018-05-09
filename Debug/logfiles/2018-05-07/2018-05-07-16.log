@@ -1,0 +1,50 @@
+2018-05-07 16:45:24:
+--------------程序启动!--------------
+2018-05-07 16:45:27:
+164527
+2018-05-07 16:45:27:
+正在同步...
+2018-05-07 16:45:27:
+同步表[device_type]操作完成!
+2018-05-07 16:45:27:
+同步表[device_info]操作完成!
+2018-05-07 16:45:27:
+同步表[work_type]操作完成!
+2018-05-07 16:45:27:
+同步表[work_template]操作完成!
+2018-05-07 16:46:28:
+同步新数据操作失败!SELECT `Id`,`DeviceId`,`RFId`,`WorkName`,`WorkTemplateId`,`Cycle`,`StartTime`,`Executor`,`State`,`SynchronState`,`CreateDate`,`CreateUserId`,,Level FROM `work_task` 		where DeviceId='301e0fa66e68431294fef9f631867ad7' and SynchronState='0' and State='1' and CreateDate >= '2017-11-08 00:00:00' and CreateDate <= '2018-05-07 16:45:27';		
+2018-05-07 16:46:44:
+You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'Level FROM `work_task` 		where DeviceId='301e0fa66e68431294fef9f631867ad7' and S' at line 1
+2018-05-07 16:46:44:
+设备类型表(work_task) -同步失败!
+2018-05-07 16:46:44:
+同步失败...
+2018-05-07 16:46:48:
+164648
+2018-05-07 16:46:48:
+正在同步...
+2018-05-07 16:46:48:
+同步表[device_type]操作完成!
+2018-05-07 16:46:48:
+同步表[device_info]操作完成!
+2018-05-07 16:46:48:
+同步表[work_type]操作完成!
+2018-05-07 16:46:48:
+同步表[work_template]操作完成!
+2018-05-07 16:46:51:
+同步新数据操作失败!SELECT `Id`,`DeviceId`,`RFId`,`WorkName`,`WorkTemplateId`,`Cycle`,`StartTime`,`Executor`,`State`,`SynchronState`,`CreateDate`,`CreateUserId`,,Level FROM `work_task` 		where DeviceId='301e0fa66e68431294fef9f631867ad7' and SynchronState='0' and State='1' and CreateDate >= '2017-11-08 00:00:00' and CreateDate <= '2018-05-07 16:46:48';		
+2018-05-07 16:51:30:
+--------------程序启动!--------------
+2018-05-07 16:51:36:
+165136
+2018-05-07 16:51:36:
+正在同步...
+2018-05-07 16:51:36:
+同步表[device_type]操作完成!
+2018-05-07 16:51:36:
+同步表[device_info]操作完成!
+2018-05-07 16:51:36:
+同步表[work_type]操作完成!
+2018-05-07 16:51:36:
+同步表[work_template]操作完成!

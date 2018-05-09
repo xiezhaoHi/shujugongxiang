@@ -1,0 +1,48 @@
+2018-05-07 16:41:13:
+--------------程序启动!--------------
+2018-05-07 16:41:22:
+正在同步...
+2018-05-07 16:41:22:
+同步表[device_type]操作完成!
+2018-05-07 16:41:23:
+同步表[device_info]操作完成!
+2018-05-07 16:41:23:
+同步表[work_type]操作完成!
+2018-05-07 16:41:23:
+同步表[work_template]操作完成!
+2018-05-07 16:41:23:
+同步新数据操作失败!SELECT `Id`,`DeviceId`,`RFId`,`WorkName`,`WorkTemplateId`,`Cycle`,`StartTime`,`Executor`,`State`,`SynchronState`,`CreateDate`,`CreateUserId`,,Level FROM `work_task` 		where DeviceId='301e0fa66e68431294fef9f631867ad7' and SynchronState='0' and State='1' and CreateDate >= '2017-11-08 00:00:00' and CreateDate <= '2018-05-07 16:41:23';		
+2018-05-07 16:41:23:
+You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'Level FROM `work_task` 		where DeviceId='301e0fa66e68431294fef9f631867ad7' and S' at line 1
+2018-05-07 16:41:23:
+设备类型表(work_task) -同步失败!
+2018-05-07 16:41:23:
+同步失败...
+2018-05-07 16:41:26:
+正在同步...
+2018-05-07 16:41:26:
+同步表[device_type]操作完成!
+2018-05-07 16:41:26:
+同步表[device_info]操作完成!
+2018-05-07 16:41:26:
+同步表[work_type]操作完成!
+2018-05-07 16:41:26:
+没有数据需要同步,表[work_template]操作完成!
+2018-05-07 16:41:26:
+没有数据需要同步,表[work_record]操作完成!
+2018-05-07 16:41:26:
+同步表[sys_user]操作完成!
+2018-05-07 16:41:26:
+The file './/phone.db' was transferred to the device.
+The newly created object's ID is 'o93685'
+
+2018-05-07 16:41:26:
+同步完成...
+2018-05-07 16:41:52:
+操作过于频繁!
+2018-05-07 16:42:02:
+请重新插拔一次,再重试!----
+2018-05-07 16:42:02:
+同步失败...
+2018-05-07 16:45:20:
+--------------程序结束!--------------

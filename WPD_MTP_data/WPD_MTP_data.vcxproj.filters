@@ -1,0 +1,153 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="sqlite">
+      <UniqueIdentifier>{b772030e-e2a3-4f1f-96a0-c7b85fd0e949}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="logrecord">
+      <UniqueIdentifier>{d53fb88f-ed1a-45ae-9ce8-ad6372e2538f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="mysql">
+      <UniqueIdentifier>{555cfa96-5f28-4cda-9de1-a48c053094b1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="注册码">
+      <UniqueIdentifier>{2bd43b8d-4dab-4eda-ae8b-780c8c3529c2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="verify">
+      <UniqueIdentifier>{1d94ef47-db89-448d-bf77-4439f6f129e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="aec">
+      <UniqueIdentifier>{bce65367-17fa-4c03-8b45-a1fb563b2279}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="WPD_MTP_data.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="WPD_MTP_dataDlg.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="stdafx.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CommonFunctions.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="sqlite3\CSQLite.h">
+      <Filter>sqlite</Filter>
+    </ClInclude>
+    <ClInclude Include="sqlite3\ISQLite.h">
+      <Filter>sqlite</Filter>
+    </ClInclude>
+    <ClInclude Include="sqlite3\sqlite3.h">
+      <Filter>sqlite</Filter>
+    </ClInclude>
+    <ClInclude Include="logrecord\LogRecord.h">
+      <Filter>logrecord</Filter>
+    </ClInclude>
+    <ClInclude Include="mysql\MyDataBase.h">
+      <Filter>mysql</Filter>
+    </ClInclude>
+    <ClInclude Include="logrecord\publicFun.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="startExeDlg.h">
+      <Filter>注册码</Filter>
+    </ClInclude>
+    <ClInclude Include="verity\MyMd5.h">
+      <Filter>verify</Filter>
+    </ClInclude>
+    <ClInclude Include="verity\MyVerify.h">
+      <Filter>verify</Filter>
+    </ClInclude>
+    <ClInclude Include="MytestDlg.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="WPD_MTP_data.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="WPD_MTP_dataDlg.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="stdafx.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ContentEnumeration.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ContentProperties.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ContentTransfer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DeviceCapabilities.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DeviceEnumeration.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DeviceEvents.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="sqlite3\CSQLite.cpp">
+      <Filter>sqlite</Filter>
+    </ClCompile>
+    <ClCompile Include="logrecord\LogRecord.cpp">
+      <Filter>logrecord</Filter>
+    </ClCompile>
+    <ClCompile Include="mysql\MyDataBase.cpp">
+      <Filter>mysql</Filter>
+    </ClCompile>
+    <ClCompile Include="startExeDlg.cpp">
+      <Filter>注册码</Filter>
+    </ClCompile>
+    <ClCompile Include="verity\MyMd5.cpp">
+      <Filter>verify</Filter>
+    </ClCompile>
+    <ClCompile Include="verity\MyVerify.cpp">
+      <Filter>verify</Filter>
+    </ClCompile>
+    <ClCompile Include="MytestDlg.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="WPD_MTP_data.rc">
+      <Filter>资源文件</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="res\WPD_MTP_data.rc2">
+      <Filter>资源文件</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\WPD_MTP_data.ico">
+      <Filter>资源文件</Filter>
+    </Image>
+  </ItemGroup>
+</Project>
