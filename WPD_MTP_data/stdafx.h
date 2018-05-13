@@ -83,6 +83,9 @@ using namespace Microsoft::WRL;
 //创建时间在半年内
 #define VALIDDAY  180 
 
+//父亲标识
+#define  PARENTFLAG _T("0")
+
 //areas 区域表 每个字段的标识
 enum  areas_enum
 {
@@ -166,6 +169,11 @@ enum MyEnum
 	work_task_CreateUserId	,
 	work_task_Level,
 	work_task_Frequency,
+	work_task_AllId, 
+	work_task_ExecutorTime,
+	work_task_ExecutorLevel,
+	work_task_TaskRemark,
+	work_task_OverdueRemark,
 	work_task_max
 
 };
@@ -190,13 +198,25 @@ enum work_record_enum
 //sys_user
 enum sys_user_enum
 {
-	sys_user_Id			 ,
-	sys_user_LoginName	 ,
-	sys_user_Name		 ,
-	sys_user_Password	 ,
-	sys_user_Role		 ,
-	sys_user_AreaName	 ,
+	sys_user_Id,
+	sys_user_LoginName,
+	sys_user_Name,
+	sys_user_Password,
+	sys_user_Role,
+	sys_user_AreaName,
 	sys_user_SynchronState,
-	sys_user_pwd_key
+	sys_user_pwd_key,
+	sys_user_role_id,
 
+
+};
+
+//树形控件关联 work_type
+enum work_type_tree
+{
+	work_type_tree_Id,
+	work_type_tree_ParentId,
+	work_type_tree_Name,
+	work_type_tree_AreaId,
+	work_type_tree_max
 };

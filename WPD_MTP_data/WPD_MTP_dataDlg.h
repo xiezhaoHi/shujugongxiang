@@ -57,8 +57,19 @@ public:
 	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapArea; //区域选择
 	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapAreaParent; //区域 对应的 父亲ID
 	CMap<HTREEITEM, HTREEITEM, CString, LPCTSTR> m_mapTreeCtrToID; //树控件对应的节点ID
+
+	//////
+	//work_type 关联 areas 表 展现在树形控件上
+	CTreeCtrl m_tree_type;
+	CMap< CString, LPCTSTR, HTREEITEM, HTREEITEM> m_mapAreaToCtr; //区域关联的树控件节点
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapTypeToArea; //区域选择
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapType; //区域选择
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapTypeParent; //区域 对应的 父亲ID
+	CMap<HTREEITEM, HTREEITEM, CString, LPCTSTR> m_mapTreeCtrToIDType; //树控件对应的节点ID
+	
 	CComboBox m_combox_chooseArea;
 	HTREEITEM	m_treeCtrl_curItem; //树控件最新的选择项
+	HTREEITEM	m_treeCtrl_curItemType; //work_type树控件最新的选择项
 	//变量
 private:
 	CString m_strIni; //配置文件的路径
@@ -83,13 +94,22 @@ public:
 	//读取sqlite中的数据 传入mysql 数据库  读取mysql 数据库的数据 存入sqlite
 	BOOL  BeginSwitchData(CString const& strPath);
 
+	//work_type 建立相应的树
+	BOOL    InitWorkTypeTree(CString const&);
+
+	//展开树的所有节点
+	void MyExpandTree(CTreeCtrl &treeCtrl,HTREEITEM hTreeItem);
 
 	//////////////////////////////////////////////////////////////////////////
 	//分表处理
 	
+	//关联的设备类型ID
+	void FindChildTypeID(CStringArray & , HTREEITEM &);
+
 	//区域树 初始化
 	void FindChildTree(CMap<CString, LPCTSTR, HTREEITEM, HTREEITEM>& mapParent);
-
+	//work_type 关联的 区域 在树控件上展示
+	void  FindChildTreeType(CMap<CString, LPCTSTR, HTREEITEM, HTREEITEM>& mapParent);
 	//初始化该区域的设备缓存
 	BOOL Init_area_devices(CString const& strAreaID);
 
@@ -122,4 +142,6 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 
 	afx_msg void OnBnClickedRefreshDevs();
+
+	afx_msg void OnTvnSelchangedTreeType(NMHDR *pNMHDR, LRESULT *pResult);
 };
