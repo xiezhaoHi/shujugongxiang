@@ -17,7 +17,8 @@ using namespace std;
 
 void EnumerateAllContent(
 	_In_ IPortableDevice* device, 
-	_In_ PCWSTR fileName);
+	_In_ PCWSTR fileName
+	, _Out_ TCHAR* bufferr);
 
 PCWSTR getNameByID(_In_ IPortableDevice*    device, _In_ PCWSTR objectID);
 //全局变量存放指定文件的对象ID
@@ -25,9 +26,9 @@ PWSTR strObjID = nullptr;
 PCWSTR strObjName = nullptr;
 extern map<wstring, wstring> childIDs;
 //新增，获取指定名称的对象的ID以便后续的数据传输
-PCWSTR getSpecifiedObjectID(_In_ IPortableDevice* device, _In_ PCWSTR fileName)
+PCWSTR getSpecifiedObjectID(_In_ IPortableDevice* device, _In_ PCWSTR fileName,_Out_ TCHAR* bufferr)
 {
-	EnumerateAllContent(device, fileName);
+	EnumerateAllContent(device, fileName, bufferr);
 
 	return strObjID;
 }
@@ -203,7 +204,8 @@ bool RecursiveEnumerate(
 //<SnippetContentEnum1>
 void EnumerateAllContent(
     _In_ IPortableDevice* device, 
-	_In_ PCWSTR fileName)
+	_In_ PCWSTR fileName,
+	_Out_ TCHAR* bufferr)
 {
     HRESULT                         hr = S_OK;
     ComPtr<IPortableDeviceContent>  content;
@@ -213,7 +215,7 @@ void EnumerateAllContent(
     hr = device->Content(&content);
     if (FAILED(hr))
     {
-        wprintf(L"! Failed to get IPortableDeviceContent from IPortableDevice, hr = 0x%lx\n", hr);
+        wsprintf(bufferr,L"! Failed to get IPortableDeviceContent from IPortableDevice, hr = 0x%lx\n", hr);
     }
 
     // Enumerate content starting from the "DEVICE" object.

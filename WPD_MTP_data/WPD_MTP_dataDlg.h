@@ -144,4 +144,6 @@ public:
 	afx_msg void OnBnClickedRefreshDevs();
 
 	afx_msg void OnTvnSelchangedTreeType(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnNMCustomdrawTreeAreas(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnNMCustomdrawTreeType(NMHDR *pNMHDR, LRESULT *pResult);
 };

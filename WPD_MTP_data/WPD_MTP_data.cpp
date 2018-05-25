@@ -97,7 +97,7 @@ BOOL CWPD_MTP_dataApp::InitInstance()
 
 	//用户身份验证
 	INT_PTR ret ;
-#ifdef DEBUG
+#ifndef DEBUG
 
 	if (!MyVerify::GetInstance()->VerityExe())
 	{

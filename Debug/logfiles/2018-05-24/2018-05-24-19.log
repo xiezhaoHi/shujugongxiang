@@ -1,0 +1,292 @@
+2018-05-24 19:05:32:
+--------------程序启动!--------------
+2018-05-24 19:05:32:
+开始初始化工作!
+2018-05-24 19:05:32:
+配置文件初始化成功!
+2018-05-24 19:05:43:
+190543
+2018-05-24 19:05:43:
+Android#2597dirID[oA]#err#end
+2018-05-24 19:05:43:
+safetydata#2604fileID[o97435#end
+2018-05-24 19:05:43:
+正在同步...
+2018-05-24 19:05:43:
+同步表[device_type]操作完成!
+2018-05-24 19:05:43:
+no such table: device_info
+2018-05-24 19:05:43:
+library routine called out of sequenceSELECT count(*) FROM `device_info` where AreaId='2d79b7dd4643436dbc45f6de36452f3e' and CreateDate >= '2017-11-25 00:00:00' and CreateDate <= '2018-05-24 19:05:43' and SynchronState='0';
+2018-05-24 19:05:43:
+设备类型表(device_info) -同步失败!
+2018-05-24 19:05:43:
+no such table: work_template
+2018-05-24 19:05:43:
+library routine called out of sequenceReplace  INTO `work_template` (`Id`,`DeviceId`,`WorkTypeId`,ClassName,`Number`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`CreateUserId`) VALUES(?,?,?,?,?,?,?,?,?,?);
+2018-05-24 19:05:43:
+设备类型表(work_template) -同步失败!
+2018-05-24 19:05:43:
+no such table: work_type
+2018-05-24 19:05:43:
+library routine called out of sequenceReplace  INTO `work_type` (`Id`,`Name`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`CreateUserId`,DeviceId) VALUES(?,?,?,?,?,?,?,?);
+2018-05-24 19:05:43:
+设备类型表(work_type) -同步失败!
+2018-05-24 19:05:43:
+no such table: work_task
+2018-05-24 19:05:43:
+library routine called out of sequenceSELECT count(*) FROM `work_task` where DeviceId='301e0fa66e68431294fef9f631867ad7' and SynchronState='0' and  CreateDate >= '2017-11-25 00:00:00' and CreateDate <= '2018-05-24 19:05:43';
+2018-05-24 19:05:43:
+设备类型表(work_task) -同步失败!
+2018-05-24 19:05:43:
+no such table: work_record
+2018-05-24 19:05:43:
+library routine called out of sequenceSELECT count(*) FROM `work_record` where SynchronState='0' and CreateDate >= '2017-11-25 00:00:00' and CreateDate <= '2018-05-24 19:05:43';
+2018-05-24 19:05:43:
+设备类型表(work_record) -同步失败!
+2018-05-24 19:05:43:
+同步表[sys_user]操作完成!
+2018-05-24 19:05:43:
+同步失败...
+2018-05-24 19:06:03:
+190603
+2018-05-24 19:06:03:
+Android#2597dirID[oA]#err#end
+2018-05-24 19:06:03:
+safetydata#2604fileID[o97435#end
+2018-05-24 19:06:03:
+正在同步...
+2018-05-24 19:06:39:
+同步表[device_type]操作完成!
+2018-05-24 19:06:59:
+no such table: device_info
+2018-05-24 19:07:00:
+library routine called out of sequenceSELECT count(*) FROM `device_info` where AreaId='2d79b7dd4643436dbc45f6de36452f3e' and CreateDate >= '2017-11-25 00:00:00' and CreateDate <= '2018-05-24 19:06:46' and SynchronState='0';
+2018-05-24 19:07:28:
+设备类型表(device_info) -同步失败!
+2018-05-24 19:07:28:
+no such table: work_template
+2018-05-24 19:07:28:
+library routine called out of sequenceReplace  INTO `work_template` (`Id`,`DeviceId`,`WorkTypeId`,ClassName,`Number`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`CreateUserId`) VALUES(?,?,?,?,?,?,?,?,?,?);
+2018-05-24 19:07:28:
+设备类型表(work_template) -同步失败!
+2018-05-24 19:07:28:
+no such table: work_type
+2018-05-24 19:07:28:
+library routine called out of sequenceReplace  INTO `work_type` (`Id`,`Name`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`CreateUserId`,DeviceId) VALUES(?,?,?,?,?,?,?,?);
+2018-05-24 19:07:28:
+设备类型表(work_type) -同步失败!
+2018-05-24 19:07:28:
+no such table: work_task
+2018-05-24 19:07:28:
+library routine called out of sequenceSELECT count(*) FROM `work_task` where DeviceId='301e0fa66e68431294fef9f631867ad7' and SynchronState='0' and  CreateDate >= '2017-11-25 00:00:00' and CreateDate <= '2018-05-24 19:07:28';
+2018-05-24 19:07:28:
+设备类型表(work_task) -同步失败!
+2018-05-24 19:07:28:
+no such table: work_record
+2018-05-24 19:07:28:
+library routine called out of sequenceSELECT count(*) FROM `work_record` where SynchronState='0' and CreateDate >= '2017-11-25 00:00:00' and CreateDate <= '2018-05-24 19:07:28';
+2018-05-24 19:07:28:
+设备类型表(work_record) -同步失败!
+2018-05-24 19:07:28:
+同步表[sys_user]操作完成!
+2018-05-24 19:07:28:
+同步失败...
+2018-05-24 19:09:52:
+--------------程序启动!--------------
+2018-05-24 19:09:52:
+开始初始化工作!
+2018-05-24 19:09:52:
+配置文件初始化成功!
+2018-05-24 19:10:14:
+请选择一项系统
+2018-05-24 19:10:18:
+191018
+2018-05-24 19:10:21:
+Android#2597dirID[oA]#err#end
+2018-05-24 19:10:21:
+safetydata#2604fileID[o97435#end
+2018-05-24 19:10:21:
+正在同步...
+2018-05-24 19:10:42:
+同步表[device_type]操作完成!
+2018-05-24 19:14:30:
+--------------程序启动!--------------
+2018-05-24 19:14:30:
+开始初始化工作!
+2018-05-24 19:14:30:
+配置文件初始化成功!
+2018-05-24 19:14:42:
+191442
+2018-05-24 19:14:44:
+Android#2597dirID[oA]#err#end
+2018-05-24 19:14:44:
+safetydata#2604fileID[o97435#end
+2018-05-24 19:14:44:
+正在同步...
+2018-05-24 19:14:45:
+同步表[device_type]操作完成!
+2018-05-24 19:14:46:
+同步表[device_info]操作完成!
+2018-05-24 19:14:46:
+同步表[work_template]操作完成!
+2018-05-24 19:14:46:
+同步表[work_type]操作完成!
+2018-05-24 19:14:46:
+同步表[work_task]操作完成!
+2018-05-24 19:14:46:
+同步表[work_record]操作完成!
+2018-05-24 19:14:46:
+同步表[sys_user]操作完成!
+2018-05-24 19:14:46:
+The file './/safetydata.db' was transferred to the device.
+The newly created object's ID is 'o97436'
+
+2018-05-24 19:14:46:
+同步完成...
+2018-05-24 19:14:46:
+191446
+2018-05-24 19:15:04:
+191504
+2018-05-24 19:15:14:
+Android#2597dirID[oA]#err#end
+2018-05-24 19:15:14:
+safetydata#2604fileID[#end
+2018-05-24 19:15:14:
+丢失数据库文件,请确保文件存在!----
+2018-05-24 19:15:14:
+同步失败...
+2018-05-24 19:15:18:
+191518
+2018-05-24 19:15:18:
+Android#2597dirID[I:\Android]#err#end
+2018-05-24 19:15:18:
+safetydata#2604fileID[#end
+2018-05-24 19:15:18:
+丢失数据库文件,请确保文件存在!----
+2018-05-24 19:15:18:
+同步失败...
+2018-05-24 19:15:21:
+191521
+2018-05-24 19:15:21:
+Android#2597dirID[oA]#err#end
+2018-05-24 19:15:22:
+safetydata#2604fileID[o97436#end
+2018-05-24 19:15:22:
+正在同步...
+2018-05-24 19:15:24:
+同步表[device_type]操作完成!
+2018-05-24 19:15:24:
+同步表[device_info]操作完成!
+2018-05-24 19:15:24:
+同步表[work_template]操作完成!
+2018-05-24 19:15:24:
+同步表[work_type]操作完成!
+2018-05-24 19:15:24:
+同步表[work_task]操作完成!
+2018-05-24 19:15:24:
+同步表[work_record]操作完成!
+2018-05-24 19:15:24:
+同步表[sys_user]操作完成!
+2018-05-24 19:15:25:
+The file './/safetydata.db' was transferred to the device.
+The newly created object's ID is 'o97437'
+
+2018-05-24 19:15:25:
+同步完成...
+2018-05-24 19:15:25:
+191525
+2018-05-24 19:17:30:
+--------------程序启动!--------------
+2018-05-24 19:17:30:
+开始初始化工作!
+2018-05-24 19:17:30:
+配置文件初始化成功!
+2018-05-24 19:17:36:
+191736
+2018-05-24 19:17:46:
+Android#2597dirID[]#err#end
+2018-05-24 19:17:46:
+safetydata#2604fileID[#end
+2018-05-24 19:17:46:
+丢失数据库文件,请确保文件存在!----
+2018-05-24 19:17:46:
+同步失败...
+2018-05-24 19:20:32:
+--------------程序启动!--------------
+2018-05-24 19:20:32:
+开始初始化工作!
+2018-05-24 19:20:32:
+配置文件初始化成功!
+2018-05-24 19:20:39:
+192039
+2018-05-24 19:20:39:
+Android#2597dirID[I:\Android]#err#end
+2018-05-24 19:20:39:
+safetydata#2604fileID[#end
+2018-05-24 19:20:39:
+丢失数据库文件,请确保文件存在!----
+2018-05-24 19:20:39:
+同步失败...
+2018-05-24 19:20:41:
+192041
+2018-05-24 19:20:41:
+Android#2597dirID[oA]#err#end
+2018-05-24 19:20:42:
+safetydata#2604fileID[o97437#end
+2018-05-24 19:20:42:
+正在同步...
+2018-05-24 19:20:42:
+同步表[device_type]操作完成!
+2018-05-24 19:20:42:
+同步表[device_info]操作完成!
+2018-05-24 19:20:42:
+同步表[work_template]操作完成!
+2018-05-24 19:20:42:
+同步表[work_type]操作完成!
+2018-05-24 19:20:42:
+同步表[work_task]操作完成!
+2018-05-24 19:20:42:
+同步表[work_record]操作完成!
+2018-05-24 19:20:42:
+同步表[sys_user]操作完成!
+2018-05-24 19:20:42:
+The file './/safetydata.db' was transferred to the device.
+The newly created object's ID is 'o97438'
+
+2018-05-24 19:20:42:
+同步完成...
+2018-05-24 19:20:42:
+192042
+2018-05-24 19:21:16:
+192116
+2018-05-24 19:21:25:
+Android#2597dirID[I:\Android]#err#end
+2018-05-24 19:21:25:
+safetydata#2604fileID[#end
+2018-05-24 19:21:25:
+丢失数据库文件,请确保文件存在!----
+2018-05-24 19:21:25:
+同步失败...
+2018-05-24 19:21:29:
+192129
+2018-05-24 19:21:44:
+Android#2597dirID[oA]#err#end
+2018-05-24 19:21:44:
+safetydata#2604fileID[#end
+2018-05-24 19:21:44:
+丢失数据库文件,请确保文件存在!----
+2018-05-24 19:21:44:
+同步失败...
+2018-05-24 19:21:54:
+192154
+2018-05-24 19:21:57:
+Android#2597dirID[I:\Android]#err#end
+2018-05-24 19:21:57:
+safetydata#2604fileID[#end
+2018-05-24 19:21:57:
+丢失数据库文件,请确保文件存在!----
+2018-05-24 19:21:57:
+同步失败...
+2018-05-24 19:22:08:
+--------------程序结束!--------------
