@@ -512,8 +512,11 @@ void DeleteDataFromDevice(_In_ IPortableDevice* device, _In_ PCWSTR objectID)
 			// PWSTR value.  This memory will be freed when PropVariantClear() is
 			// called below.
 			PROPVARIANT pv = {0};
-			hr = InitPropVariantFromString(objectID, &pv);
-			if (SUCCEEDED(hr))
+			PropVariantInit(&pv);
+			//hr = InitPropVariantFromString(objectID, &pv);
+			pv.vt = VT_LPWSTR;
+			pv.pwszVal = AtlAllocTaskWideString(objectID);
+			if (pv.pwszVal != nullptr)
 			{
 				// Add the object identifier to the objects-to-delete list
 				// (We are only deleting 1 in this example)
@@ -680,7 +683,9 @@ void DeleteContentFromDevice(
 //</SnippetDeleteContent1>
 // Moves a selected object (which is already on the device) to another location on the device.
 void MoveContentAlreadyOnDevice(
-    _In_ IPortableDevice* device)
+    _In_ IPortableDevice* device
+	,_In_ PCWSTR pselection
+	,_In_ PCWSTR pdestinationFolderObjectID)
 {
     HRESULT                                       hr = S_OK;
     WCHAR                                         selection[SELECTION_BUFFER_SIZE]                 = {0};
@@ -697,20 +702,20 @@ void MoveContentAlreadyOnDevice(
     }
 
     // Prompt user to enter an object identifier on the device to move.
-    wprintf(L"Enter the identifer of the object you wish to move.\n>");
-    hr = StringCchGetsW(selection, ARRAYSIZE(selection));
-    if (FAILED(hr))
-    {
-        wprintf(L"An invalid object identifier was specified, aborting content moving\n");
-    }
-
-    // Prompt user to enter an object identifier on the device to move.
-    wprintf(L"Enter the identifer of the object you wish to move '%ws' to.\n>", selection);
-    hr = StringCchGetsW(destinationFolderObjectID, ARRAYSIZE(destinationFolderObjectID));
-    if (FAILED(hr))
-    {
-        wprintf(L"An invalid object identifier was specified, aborting content moving\n");
-    }
+//     wprintf(L"Enter the identifer of the object you wish to move.\n>");
+//     hr = StringCchGetsW(selection, ARRAYSIZE(pselection));
+//     if (FAILED(hr))
+//     {
+//         wprintf(L"An invalid object identifier was specified, aborting content moving\n");
+//     }
+// 
+//     // Prompt user to enter an object identifier on the device to move.
+//     wprintf(L"Enter the identifer of the object you wish to move '%ws' to.\n>", selection);
+//     hr = StringCchGetsW(destinationFolderObjectID, ARRAYSIZE(destinationFolderObjectID));
+//     if (FAILED(hr))
+//     {
+//         wprintf(L"An invalid object identifier was specified, aborting content moving\n");
+//     }
 
     // 1) get an IPortableDeviceContent interface from the IPortableDevice interface to
     // access the content-specific methods.
@@ -741,7 +746,7 @@ void MoveContentAlreadyOnDevice(
             // PWSTR value.  This memory will be freed when PropVariantClear() is
             // called below.
             PROPVARIANT pv = {0};
-            hr = InitPropVariantFromString(selection, &pv);
+            hr = InitPropVariantFromString(pselection, &pv);
             if (SUCCEEDED(hr))
             {
                 // Add the object identifier to the objects-to-move list
@@ -751,7 +756,7 @@ void MoveContentAlreadyOnDevice(
                 {
                     // Attempt to move the object on the device
                     hr = content->Move(objectsToMove.Get(),       // Object(s) to move
-                                        destinationFolderObjectID, // Folder to move to
+											pdestinationFolderObjectID, // Folder to move to
                                         nullptr);                  // Object(s) that failed to delete (we are only moving 1, so we can pass nullptr here)
                     if (SUCCEEDED(hr))
                     {
@@ -1121,6 +1126,8 @@ BOOL TransferDataToDevice(
 				wsprintf(strErr
 					, L"! Failed to transfer object to device, hr = 0x%lx\n", hr);
 			}
+			else
+				ret = true;
 		}
 		else
 		{
@@ -1146,30 +1153,30 @@ BOOL TransferDataToDevice(
 		// Some clients may want to know the object identifier of the newly created
 		// object.  This is done by calling GetObjectID() method on the
 		// IPortableDeviceDataStream interface.
-		if (SUCCEEDED(hr))
-		{
-			PWSTR newlyCreatedObject = nullptr;
-			hr = finalObjectDataStream->GetObjectID(&newlyCreatedObject);
-			if (SUCCEEDED(hr))
-			{
-				//wprintf(L"The file '%ws' was transferred to the device.\nThe newly created object's ID is '%ws'\n", filePath, newlyCreatedObject);
-				ret = TRUE;
-				wsprintf(strErr
-					, L"The file '%ws' was transferred to the device.\nThe newly created object's ID is '%ws'\n", filePath, newlyCreatedObject);
-
-			}
-			else
-			{
-				//wprintf(L"! Failed to get the newly transferred object's identifier from the device, hr = 0x%lx\n", hr);
-				wsprintf(strErr
-					, L"! Failed to get the newly transferred object's identifier from the device, hr = 0x%lx\n", hr);
-
-			}
-
-			// Free the object identifier string returned from the GetObjectID() method.
-			CoTaskMemFree(newlyCreatedObject);
-			newlyCreatedObject = nullptr;
-		}
+// 		if (SUCCEEDED(hr))
+// 		{
+// 			PWSTR newlyCreatedObject = nullptr;
+// 			hr = finalObjectDataStream->GetObjectID(&newlyCreatedObject);
+// 			if (SUCCEEDED(hr))
+// 			{
+// 				//wprintf(L"The file '%ws' was transferred to the device.\nThe newly created object's ID is '%ws'\n", filePath, newlyCreatedObject);
+// 				ret = TRUE;
+// 				wsprintf(strErr
+// 					, L"The file '%ws' was transferred to the device.\nThe newly created object's ID is '%ws'\n", filePath, newlyCreatedObject);
+// 
+// 			}
+// 			else
+// 			{
+// 				//wprintf(L"! Failed to get the newly transferred object's identifier from the device, hr = 0x%lx\n", hr);
+// 				wsprintf(strErr
+// 					, L"! Failed to get the newly transferred object's identifier from the device, hr = 0x%lx\n", hr);
+// 
+// 			}
+// 
+// 			// Free the object identifier string returned from the GetObjectID() method.
+// 			CoTaskMemFree(newlyCreatedObject);
+// 			newlyCreatedObject = nullptr;
+// 		}
 	}
 	//</SnippetContentTransfer5>
 	return ret;

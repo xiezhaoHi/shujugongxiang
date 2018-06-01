@@ -37,6 +37,7 @@ private:
 	MySQLConInfo MysqlConInfo;   // 连接信息  
 	MYSQL MysqlInstance;         // MySQL对象  
 	MYSQL_RES *Result;           // 用于存放结果 
+	BOOL	   m_isConnect; //是否处于连接中
 private:
 	CMyDataBase();
 	static CMyDataBase* m_singletion;

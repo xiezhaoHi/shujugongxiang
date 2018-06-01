@@ -14,6 +14,7 @@
 CMyDataBase::CMyDataBase():ErrorNum(0), ErrorInfo("ok")
 {
 	m_singletion = nullptr;
+	m_isConnect = FALSE;
 }
 /*
 初始化数据库:读取配置文件中的信息 登陆 远程数据库
@@ -21,41 +22,18 @@ strPath: 配置文件的绝对路径
 */
 bool CMyDataBase::InitMyDataBase(MySQLConInfo const& conInfo)
 {
-	mysql_library_init(0, NULL, NULL);
-	mysql_init(&MysqlInstance);
 
+	MysqlConInfo = conInfo;
+	
+	mysql_library_init(0, NULL, NULL);
+
+	mysql_init(&MysqlInstance);
 	// 设置字符集，否则无法处理中文  
 	mysql_options(&MysqlInstance, MYSQL_SET_CHARSET_NAME, "gbk");
 
-	MysqlConInfo = conInfo;
+	m_isConnect = Open();
 
-// 	char buff[MAX_PATH] = { 0 };
-// 	GetPrivateProfileStringA(("DATABASE"), ("server"), ("127.0.0.1")
-// 		, buff, MAX_PATH, strPath);
-// 	MysqlConInfo.server = buff;
-// 	memset(buff, 0, MAX_PATH);
-// 	
-// 	GetPrivateProfileStringA(("DATABASE"), ("username"), ("root")
-// 		, buff, MAX_PATH, strPath);
-// 	MysqlConInfo.user = buff;
-// 	memset(buff, 0, MAX_PATH);
-// 
-// 	GetPrivateProfileStringA(("DATABASE"), ("password"), ("root")
-// 		, buff, MAX_PATH, strPath);
-// 	MysqlConInfo.password = buff;
-// 	memset(buff, 0, MAX_PATH);
-// 
-// 	GetPrivateProfileStringA(("DATABASE"), ("database"), ("userDB")
-// 		, buff, MAX_PATH, strPath);
-// 	MysqlConInfo.database = buff;
-// 	memset(buff, 0, MAX_PATH);
-// 
-// 	GetPrivateProfileStringA(("DATABASE"), ("port"), ("3306")
-// 		, buff, MAX_PATH, strPath);
-// 	MysqlConInfo.port = atoi(buff);
-// 	memset(buff, 0, MAX_PATH);
-
-	return Open();
+	return m_isConnect;
 }
 
 CMyDataBase::~CMyDataBase()

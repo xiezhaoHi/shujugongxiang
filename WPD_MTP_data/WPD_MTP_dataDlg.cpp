@@ -47,7 +47,8 @@ void CreateContactPhotoResourceOnDevice(_In_ IPortableDevice* device);
 void DeleteContentFromDevice(_In_ IPortableDevice* device);
 
 // Content moving
-void MoveContentAlreadyOnDevice(_In_ IPortableDevice* device);
+void MoveContentAlreadyOnDevice(_In_ IPortableDevice* device, _In_ PCWSTR pselection
+	, _In_ PCWSTR pdestinationFolderObjectID);
 
 // Content update (properties and data simultaneously)
 void UpdateContentOnDevice(
@@ -155,6 +156,7 @@ void CWPD_MTP_dataDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_TREE_AREAS, m_tree_areas);
 	DDX_Control(pDX, IDC_STATIC_Area, m_static_current_area);
 	DDX_Control(pDX, IDC_TREE_TYPE, m_tree_type);
+	DDX_Control(pDX, IDC_STATIC_CurChoose, m_static_curchoose);
 }
 
 BEGIN_MESSAGE_MAP(CWPD_MTP_dataDlg, CDialogEx)
@@ -570,6 +572,8 @@ BOOL  CWPD_MTP_dataDlg::InitWorkTypeTree(CString const& strAreaID)
 	m_mapTypeParent.RemoveAll();
 	m_mapTypeToArea.RemoveAll();
 	m_tree_type.DeleteAllItems();
+	m_mapTreeCtrToIDType.RemoveAll(); //重置
+
 
 	DWORD dwStyles = m_tree_type.GetStyle();//获取树控制原风格  
 	dwStyles |= TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS | TVS_SHOWSELALWAYS;
@@ -608,7 +612,7 @@ BOOL  CWPD_MTP_dataDlg::InitWorkTypeTree(CString const& strAreaID)
 		else
 		{
 			CStringA err = CMyDataBase::GetInstance()->GetErrorInfo();
-			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(err));
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(err+ strSql));
 			ShowLog(_T("mysql数据库连接失败,请确保连接无误并重启软件!"));
 			//关闭数据库
 			CMyDataBase::GetInstance()->Close();
@@ -640,6 +644,55 @@ BOOL  CWPD_MTP_dataDlg::InitWorkTypeTree(CString const& strAreaID)
 		}
 	}
 	FindChildTreeType(mapParentItemType);
+	return TRUE;
+}
+
+
+//获取区域相关的work_type  信息
+BOOL  CWPD_MTP_dataDlg::InitWorkTypeMap(CString const& strAreaID,CStringArray & strAryID)
+{
+
+	std::vector<std::vector<std::string> > vecDataType; //mysql 数据库的数据
+														//2.获取 mysql数据库的 work_type表
+	//if (CMyDataBase::GetInstance()->InitMyDataBase(m_mysqlLogin))
+	{
+		CStringA strSql;
+		strSql.Format("SELECT `Id`,\
+					`ParentId`,\
+					`Name`,\
+					`AreaId`\
+					FROM `device_type` where AreaId='%s';", CpublicFun::UnicodeToAsc(strAreaID));
+		if (CMyDataBase::GetInstance()->Select(strSql.GetBuffer(), vecDataType))
+		{
+			int index = 0;
+			CString strName;
+			for each (std::vector<std::string> varVec in vecDataType)
+			{
+				strAryID.Add(CpublicFun::AscToUnicode(varVec[work_type_tree_Id].c_str()));
+			}
+
+		
+		}
+		else
+		{
+			CStringA err = CMyDataBase::GetInstance()->GetErrorInfo();
+			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(err+ strSql));
+			ShowLog(_T("mysql数据库连接失败,请确保连接无误并重启软件!"));
+			//关闭数据库
+			//CMyDataBase::GetInstance()->Close();
+			return FALSE;
+		}
+	}
+// 	else
+// 	{
+// 		CStringA err = CMyDataBase::GetInstance()->GetErrorInfo();
+// 		CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(err));
+// 		ShowLog(_T("mysql数据库连接失败,请确保连接无误并重启软件!"));
+// 		return FALSE;
+// 	}
+	//关闭数据库
+	//CMyDataBase::GetInstance()->Close();
+
 	return TRUE;
 }
 
@@ -2191,8 +2244,33 @@ void CWPD_MTP_dataDlg::FindChildTypeID(CStringArray & strAry, HTREEITEM & item)
 	}
 	
 }
+
+//选择的区域及子区域ID
+void CWPD_MTP_dataDlg::FindChildID(CStringArray & strAry, HTREEITEM & item)
+{
+	//选择的设备类型 以及 所有的 子设备类型 关联的设备
+	///
+	if (item == nullptr)
+	{
+		return;
+	}
+	strAry.Add(m_mapTreeCtrToID[item]);
+	HTREEITEM hCurItem = m_tree_areas.GetChildItem(item);
+
+	HTREEITEM hNextItem;
+	while (hCurItem)
+	{
+		hNextItem = hCurItem;
+		FindChildID(strAry, hNextItem);
+		hCurItem = m_tree_areas.GetNextSiblingItem(hCurItem);
+	}
+
+}
+
 //初始化该区域的设备缓存
-BOOL CWPD_MTP_dataDlg::Init_area_devices(CString const& strAreaID)
+//strTypeId :strAreaID该区域下的   系统数组
+BOOL CWPD_MTP_dataDlg::Init_area_devices(CString const& strAreaID
+	, CStringArray const& strTypeId)
 {
 	try
 	{
@@ -2202,9 +2280,9 @@ BOOL CWPD_MTP_dataDlg::Init_area_devices(CString const& strAreaID)
 		CString strCurTime = curTime.Format(_T("%Y-%m-%d %H:%M:%S"));
 		CString strBeginTime = beginTime.Format(_T("%Y-%m-%d 00:00:00"));
 		
-		CStringArray strTypeId; //关联的系统ID
-		//获取所选的系统 以及子系统 的所有ID
-		FindChildTypeID(strTypeId,m_treeCtrl_curItemType);
+// 		CStringArray strTypeId; //关联的系统ID
+// 		//获取所选的系统 以及子系统 的所有ID
+// 		FindChildTypeID(strTypeId,m_treeCtrl_curItemType);
 		for(int indexTypeID = 0; indexTypeID < strTypeId.GetSize(); ++indexTypeID)
 		{
 
@@ -2246,6 +2324,80 @@ BOOL CWPD_MTP_dataDlg::Init_area_devices(CString const& strAreaID)
 	}
 	
 }
+
+
+//初始化只选择区域的设备缓存
+BOOL CWPD_MTP_dataDlg::Init_onlyarea_devices(CString const& strAreaID)
+{
+	try
+	{
+
+		if (m_mapTypeParent.IsEmpty()) //该区域下没有相应的系统
+		{
+			return TRUE;
+		}
+		//限定一个时间范围
+		COleDateTime  curTime = COleDateTime::GetTickCount();
+		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
+		CString strCurTime = curTime.Format(_T("%Y-%m-%d %H:%M:%S"));
+		CString strBeginTime = beginTime.Format(_T("%Y-%m-%d 00:00:00"));
+
+		POSITION posType = m_mapTypeParent.GetStartPosition();
+		CMap<CString, LPCTSTR, HTREEITEM, HTREEITEM> mapParentItemType; //父节点 对应的 树控件节点 句柄
+		CString strKeyType, strValueType;
+		while (posType)
+		{
+			m_mapTypeParent.GetNextAssoc(posType, strKeyType, strValueType);
+			if (strValueType == PARENTFLAG) //为父亲节点 说明该区域有系统
+			{
+				CStringArray strTypeId; //关联的系统ID//获取所选的系统 以及子系统 的所有ID
+				FindChildTypeID(strTypeId, m_treeCtrl_curItemType);
+				for (int indexTypeID = 0; indexTypeID < strTypeId.GetSize(); ++indexTypeID)
+				{
+
+					std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+					CString strSql;
+					strSql.Format(_T("SELECT `Id` FROM `device_info` where TypeId='%s' and CreateDate >= '%s' and CreateDate <= '%s';")
+						, strTypeId[indexTypeID], strBeginTime, strCurTime);
+					//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
+					if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+					{
+						int dataCount = vecData.size(), dataNum = 0;
+						if (dataCount > 0)//有数据可以同步
+						{
+							for each (std::vector<string> varVec in vecData)
+							{
+								//2.构建 更新 字符串 并保留起来,等到 同步完成 后 写入mysql数据库
+
+								m_areasDeviceID.AddTail(varVec[0].c_str());
+
+							}
+						}
+					}
+					else
+					{
+						CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+						return FALSE;
+					}
+				}
+
+			}
+		}
+	
+
+		return TRUE;
+	}
+	catch (...)
+	{
+		CString strLog;
+		strLog.Format((_T("执行异常,最后错误代码为[%d]"), GetLastError()));
+		CLogRecord::WriteRecordToFile(strLog);
+		return FALSE;
+	}
+
+}
+
 
 /*同步sys_user表数据,
 1.pc端向phone端同步未同步的数据, 更改 同步状态.
@@ -2435,83 +2587,186 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 			//CString strAreaName;
 			//m_combox_chooseArea.GetLBText(m_combox_chooseArea.GetCurSel(), strAreaName);
 
-			strAreaID = m_mapTreeCtrToID[m_treeCtrl_curItem];
-
-
-			ASSERT(!strAreaID.IsEmpty());
-
+			/*
+			20180530
+			修改:区域选择 或者系统选择
+			1.区域选择 同步 该区域及所有子区域 下的所有系统
+			2.系统选择 同步相应系统下的数据
+			*/
 			BOOL ret = TRUE;
-			
-			//0.初始化该区域的设备缓存
-			if (!Init_area_devices(strAreaID))
+			if (m_treeCtrl_curItemType != nullptr) //2.系统选择
 			{
-				ShowLog(_T("初始化该区域的设备缓存失败-同步失败!"));
-				ret = FALSE;
+				
+				{
+					strAreaID = m_mapTreeCtrToID[m_treeCtrl_curItem];
+					CStringArray strTypeId;
+					FindChildTypeID(strTypeId, m_treeCtrl_curItemType);
+					ASSERT(!strAreaID.IsEmpty());
+					//0.初始化该区域的设备缓存
+					if (!Init_area_devices(strAreaID, strTypeId))
+					{
+						ShowLog(_T("初始化该区域的设备缓存失败-同步失败!"));
+						ret = FALSE;
+					}
+
+
+					//1.同步表 device_type 信息
+					if (!Synchrodata_device_type(strAreaID, strPath))
+					{
+						ShowLog(_T("设备类型表(device_type) -同步失败!"));
+						ret = FALSE;
+
+					}
+					//2.同步表 device_info
+					if (!Synchrodata_device_info(strAreaID, strPath))
+					{
+						ShowLog(_T("设备类型表(device_info) -同步失败!"));
+						ret = FALSE;
+
+					}
+					//3.同步表 work_template
+					//模板表 关联work_type表 只同步 work_type 需要同步的任务 关联的模板
+					if (!Synchrodata_work_template(strAreaID, strPath))
+					{
+						ShowLog(_T("设备类型表(work_template) -同步失败!"));
+						ret = FALSE;
+
+					}
+					//4.同步表 work_type
+					if (!Synchrodata_work_type(strAreaID, strPath))
+					{
+						ShowLog(_T("设备类型表(work_type) -同步失败!"));
+						ret = FALSE;
+
+					}
+
+
+					//5.同步表 work_task
+					if (!Synchrodata_work_task(strAreaID, strPath))
+					{
+						ShowLog(_T("设备类型表(work_task) -同步失败!"));
+						ret = FALSE;
+
+					}
+
+					//6.同步表 work_record
+					if (!Synchrodata_work_record(strAreaID, strPath))
+					{
+						ShowLog(_T("设备类型表(work_record) -同步失败!"));
+						ret = FALSE;
+
+					}
+					//7.同步表 sys_user 信息
+					if (!Synchrodata_sys_user(strAreaID, strPath))
+					{
+						ShowLog(_T("设备类型表(sys_user) -同步失败!"));
+						ret = FALSE;
+					}
+
+
+					//00.同步完成后,更改mysql 同步状态
+					if (!UpdateMysqlDB(m_updateMysqlData))
+					{
+						ShowLog(_T("更新服务端数据库 同步状态失败 -同步失败!"));
+						ret = FALSE;
+					}
+					
+				}
+				
+
+
 			}
-
-
-			//1.同步表 device_type 信息
-			if (!Synchrodata_device_type(strAreaID, strPath))
+			else //1.只选择了 区域
 			{
-				ShowLog(_T("设备类型表(device_type) -同步失败!"));
-				ret = FALSE;
 
-			}
-			//2.同步表 device_info
-			if (!Synchrodata_device_info(strAreaID, strPath))
-			{
-				ShowLog(_T("设备类型表(device_info) -同步失败!"));
-				ret = FALSE;
+				CStringArray strAryItem; //选择的区域及子区域
+				FindChildID(strAryItem, m_treeCtrl_curItem);
+				for (int index = 0; index < strAryItem.GetSize(); ++index)
+				{
+					//2.系统选择
+					//初始化中间变量
+						m_updateMysqlData.RemoveAll();
+						m_areasDeviceID.RemoveAll();
+						
+						strAreaID = strAryItem[index];
+						CStringArray strTypeId;
+						InitWorkTypeMap(strAreaID, strTypeId);
+						ASSERT(!strAreaID.IsEmpty());
+						
+						{
+							//0.初始化该区域的设备缓存
+							if (!Init_area_devices(strAreaID, strTypeId))
+							{
+								ShowLog(_T("初始化该区域的设备缓存失败-同步失败!"));
+								ret = FALSE;
+							}
 
-			}
-			//3.同步表 work_template
-			//模板表 关联work_type表 只同步 work_type 需要同步的任务 关联的模板
-			if (!Synchrodata_work_template(strAreaID, strPath))
-			{
-				ShowLog(_T("设备类型表(work_template) -同步失败!"));
-				ret = FALSE;
 
-			}
-			//4.同步表 work_type
-			if (!Synchrodata_work_type(strAreaID,strPath))
-			{
-				ShowLog(_T("设备类型表(work_type) -同步失败!"));
-				ret = FALSE;
+							//1.同步表 device_type 信息
+							if (!Synchrodata_device_type(strAreaID, strPath))
+							{
+								ShowLog(_T("设备类型表(device_type) -同步失败!"));
+								ret = FALSE;
 
-			}
+							}
+							//2.同步表 device_info
+							if (!Synchrodata_device_info(strAreaID, strPath))
+							{
+								ShowLog(_T("设备类型表(device_info) -同步失败!"));
+								ret = FALSE;
+
+							}
+							//3.同步表 work_template
+							//模板表 关联work_type表 只同步 work_type 需要同步的任务 关联的模板
+							if (!Synchrodata_work_template(strAreaID, strPath))
+							{
+								ShowLog(_T("设备类型表(work_template) -同步失败!"));
+								ret = FALSE;
+
+							}
+							//4.同步表 work_type
+							if (!Synchrodata_work_type(strAreaID, strPath))
+							{
+								ShowLog(_T("设备类型表(work_type) -同步失败!"));
+								ret = FALSE;
+
+							}
+
+
+							//5.同步表 work_task
+							if (!Synchrodata_work_task(strAreaID, strPath))
+							{
+								ShowLog(_T("设备类型表(work_task) -同步失败!"));
+								ret = FALSE;
+
+							}
+
+							//6.同步表 work_record
+							if (!Synchrodata_work_record(strAreaID, strPath))
+							{
+								ShowLog(_T("设备类型表(work_record) -同步失败!"));
+								ret = FALSE;
+
+							}
+							//7.同步表 sys_user 信息
+							if (!Synchrodata_sys_user(strAreaID, strPath))
+							{
+								ShowLog(_T("设备类型表(sys_user) -同步失败!"));
+								ret = FALSE;
+							}
+
+
+							//00.同步完成后,更改mysql 同步状态
+							if (!UpdateMysqlDB(m_updateMysqlData))
+							{
+								ShowLog(_T("更新服务端数据库 同步状态失败 -同步失败!"));
+								ret = FALSE;
+							}
+						}
 		
-
-			//5.同步表 work_task
-			if (!Synchrodata_work_task(strAreaID, strPath))
-			{
-				ShowLog(_T("设备类型表(work_task) -同步失败!"));
-				ret = FALSE;
+				}
 
 			}
-
-			//6.同步表 work_record
-			if (!Synchrodata_work_record(strAreaID, strPath))
-			{
-				ShowLog(_T("设备类型表(work_record) -同步失败!"));
-				ret = FALSE;
-
-			}
-			//7.同步表 sys_user 信息
-			if (!Synchrodata_sys_user(strAreaID, strPath))
-			{
-				ShowLog(_T("设备类型表(sys_user) -同步失败!"));
-				ret = FALSE;
-			}
-			
-
-			//00.同步完成后,更改mysql 同步状态
-			if (!UpdateMysqlDB(m_updateMysqlData))
-			{
-				ShowLog(_T("更新服务端数据库 同步状态失败 -同步失败!"));
-				ret = FALSE;
-			}
-			
-			
 			CMyDataBase::GetInstance()->Close();
 			return ret;
 		}
@@ -2542,6 +2797,7 @@ BOOL  CWPD_MTP_dataDlg::BeginPcToPhone(IPortableDevice* & pDevice)
 	WCHAR buffErr[1024] = { 0 };
 	//删除手持设备上的phone.db
 	DeleteDataFromDevice(pDevice, gFileID);
+	//MoveContentAlreadyOnDevice(pDevice, gFileID, gDirID);
 // 	UpdateContentOnDevice(pDevice,
 // 		WPD_CONTENT_TYPE_FOLDER,
 // 		L"*.*\0*.*\0\0",
@@ -2549,7 +2805,8 @@ BOOL  CWPD_MTP_dataDlg::BeginPcToPhone(IPortableDevice* & pDevice)
 	//拷贝phone.db到手持设备上
 	//gFilePath = _T(".//phone.db");
 	
-	ret = TransferDataToDevice(pDevice, WPD_CONTENT_TYPE_ALL, gDirID,gFilePath, buffErr);
+	//gFilePath = ;
+	ret = TransferDataToDevice(pDevice, WPD_CONTENT_TYPE_ALL, gDirID, gFilePath, buffErr);
 	
 	CLogRecord::WriteRecordToFile(buffErr);
 	//删除当前的中间文件
@@ -2617,14 +2874,14 @@ BOOL CWPD_MTP_dataDlg::BeginPhoneToPc(IPortableDevice* & pDevice)
 	
 		if (index == 1) //第二次
 		{
-			PCWSTR objID = getIDByParentID(pDevice, content, dirID, m_aryFileName.GetAt(index));
+			PCWSTR objID = getIDByParentID(pDevice, content, dirID, m_aryFileName.GetAt(index)+_T(".db"));
 			fileID = objID;
-			CLogRecord::WriteRecordToFile(m_aryFileName.GetAt(index) + _T("#2604fileID[") + fileID + _T("#end"));
+			CLogRecord::WriteRecordToFile(m_aryFileName.GetAt(index) + _T("#2604fileID[") + fileID + _T("]#end"));
 			continue;
 		}
 		//大于2次之后
 		PCWSTR objID = getIDByParentID(pDevice, content, fileID, m_aryFileName.GetAt(index));
-		CLogRecord::WriteRecordToFile(m_aryFileName.GetAt(index) + _T("#2609fileID[") + objID + _T("#end"));
+		CLogRecord::WriteRecordToFile(m_aryFileName.GetAt(index) + _T("#2609fileID[") + objID + _T("]#end"));
 		dirID = fileID;
 		fileID = objID;
 	}
@@ -2648,7 +2905,7 @@ BOOL CWPD_MTP_dataDlg::BeginPhoneToPc(IPortableDevice* & pDevice)
 
 
 	CTime Time = CTime::GetTickCount();
-	CString strName = Time.Format(_T("%Y-%m-%d-%H-%M"));
+	CString strName = Time.Format(_T("%Y-%m-%d-%H-%M-%S"));
 	BOOL bRet = CopyFile(_T(".//") + m_fileName, _T(".//backUp//") + strName, FALSE);
 	gFilePath = _T(".//") + m_fileName; //中间文件路径
 	ShowLog(_T("正在同步..."));
@@ -2696,16 +2953,19 @@ UINT MyControllingFunction(LPVOID pParam)
 	 {
 		 
 		 //2.同步最新的sqlite数据 到pc mysql数据库  并获取最新的mysql数据 写入sqlite 数据库
+
 		 if (pDlg->BeginSwitchData(gFilePath))
 		 {
 			// 3.更新phone端的数据库  把pc端 中间sqlite数据库 拷贝到 phone端指定位置
 			 ret =  pDlg->BeginPcToPhone(gDevice);
 		 }
+
 	 }
 	 if (gDevice)
 	 {
 		 gDevice->Close();
 		 gDevice->Release();
+		 gDevice = nullptr;
 	 }
 
 	
@@ -2727,9 +2987,9 @@ UINT MyControllingFunction(LPVOID pParam)
 void CWPD_MTP_dataDlg::OnBnClickedBtTophone()
 {	
 	//判断 树控件选择 为叶节点
-	if (nullptr == m_treeCtrl_curItemType)
+	if (nullptr == m_treeCtrl_curItem)
 	{
-		ShowLog(_T("请选择一项系统"));
+		ShowLog(_T("请选择一个区域"));
 		return;
 	}
 	//测试
@@ -2738,11 +2998,12 @@ void CWPD_MTP_dataDlg::OnBnClickedBtTophone()
 	BeginSwitchData(gFilePath);
 	return;
 #endif
-
+	//MyControllingFunction(this);
 	if (!m_threadFlag)
 	{
 		// TODO: 在此添加控件通知处理程序代码
 		AfxBeginThread(MyControllingFunction, this);
+		
 		m_threadFlag = TRUE;
 	}
 	else
@@ -2850,7 +3111,9 @@ void CWPD_MTP_dataDlg::OnTvnSelchangedTreeAreas(NMHDR *pNMHDR, LRESULT *pResult)
 	*pResult = 0;
 	m_treeCtrl_curItem = pNMTreeView->itemNew.hItem;
 	m_treeCtrl_curItemType = nullptr;
-	m_static_current_area.SetWindowText(_T(""));
+	m_static_curchoose.SetWindowText(_T("当前区域:"));
+	m_static_current_area.SetWindowText(m_mapArea[m_mapTreeCtrToID[m_treeCtrl_curItem]]);
+
 
 	InitWorkTypeTree(m_mapTreeCtrToID[m_treeCtrl_curItem]);
 
@@ -2886,6 +3149,7 @@ void CWPD_MTP_dataDlg::OnTvnSelchangedTreeType(NMHDR *pNMHDR, LRESULT *pResult)
 	*pResult = 0;
 	m_treeCtrl_curItemType = pNMTreeView->itemNew.hItem;
 	m_static_current_area.SetWindowText(m_mapType[m_mapTreeCtrToIDType[m_treeCtrl_curItemType]]);
+	m_static_curchoose.SetWindowText(_T("当前系统:"));
 }
 
 //展开所有节点

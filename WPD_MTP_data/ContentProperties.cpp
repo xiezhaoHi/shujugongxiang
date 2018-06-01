@@ -48,29 +48,40 @@ PCWSTR getNameByID(_In_ IPortableDevice*    device, _In_ PCWSTR objectID)
 			wprintf(L"! Failed to add WPD_OBJECT_PARENT_ID to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
 		}
 
-		tempHr = propertiesToRead->Add(WPD_OBJECT_NAME);
+// 		tempHr = propertiesToRead->Add(WPD_OBJECT_NAME);
+// 		if (FAILED(tempHr))
+// 		{
+// 			wprintf(L"! Failed to add WPD_OBJECT_NAME to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
+// 		}
+// 
+// 		tempHr = propertiesToRead->Add(WPD_OBJECT_PERSISTENT_UNIQUE_ID);
+// 		if (FAILED(tempHr))
+// 		{
+// 			wprintf(L"! Failed to add WPD_OBJECT_PERSISTENT_UNIQUE_ID to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
+// 		}
+// 
+// 		tempHr = propertiesToRead->Add(WPD_OBJECT_FORMAT);
+// 		if (FAILED(tempHr))
+// 		{
+// 			wprintf(L"! Failed to add WPD_OBJECT_FORMAT to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
+// 		}
+// 
+// 		tempHr = propertiesToRead->Add(WPD_OBJECT_CONTENT_TYPE);
+// 		if (FAILED(tempHr))
+// 		{
+// 			wprintf(L"! Failed to add WPD_OBJECT_CONTENT_TYPE to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
+// 		}
+		tempHr = propertiesToRead->Add(WPD_OBJECT_ORIGINAL_FILE_NAME);
 		if (FAILED(tempHr))
 		{
-			wprintf(L"! Failed to add WPD_OBJECT_NAME to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
+			wprintf(L"! Failed to add WPD_OBJECT_ORIGINAL_FILE_NAME to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
 		}
-
-		tempHr = propertiesToRead->Add(WPD_OBJECT_PERSISTENT_UNIQUE_ID);
-		if (FAILED(tempHr))
-		{
-			wprintf(L"! Failed to add WPD_OBJECT_PERSISTENT_UNIQUE_ID to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
-		}
-
-		tempHr = propertiesToRead->Add(WPD_OBJECT_FORMAT);
-		if (FAILED(tempHr))
-		{
-			wprintf(L"! Failed to add WPD_OBJECT_FORMAT to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
-		}
-
-		tempHr = propertiesToRead->Add(WPD_OBJECT_CONTENT_TYPE);
-		if (FAILED(tempHr))
-		{
-			wprintf(L"! Failed to add WPD_OBJECT_CONTENT_TYPE to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
-		}
+// 		tempHr = propertiesToRead->Add(WPD_OBJECT_NON_CONSUMABLE);
+// 		if (FAILED(tempHr))
+// 		{
+// 			wprintf(L"! Failed to add WPD_OBJECT_NON_CONSUMABLE to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
+// 		}
+		
 	}
 
 	if (SUCCEEDED(hr))
@@ -91,7 +102,18 @@ PCWSTR getNameByID(_In_ IPortableDevice*    device, _In_ PCWSTR objectID)
 		PCWSTR keyName = L"WPD_OBJECT_NAME";
 
 		PWSTR   value = nullptr;
-		HRESULT hr    = properties->GetStringValue(WPD_OBJECT_NAME, &value);
+		HRESULT hr    = properties->GetStringValue(WPD_OBJECT_ORIGINAL_FILE_NAME, &value);
+
+// 		if (StrCmpW(_T("safetydata.db-journal"), value) == 0)
+// 		{
+// 			int i = 0;
+// 		}
+// 		properties->GetStringValue(WPD_OBJECT_CONTENT_TYPE, &value);
+// 		properties->GetStringValue(WPD_OBJECT_FORMAT, &value);
+// 		properties->GetStringValue(WPD_OBJECT_PERSISTENT_UNIQUE_ID, &value);
+// 		properties->GetStringValue(WPD_OBJECT_ORIGINAL_FILE_NAME, &value);
+// 		properties->GetStringValue(WPD_OBJECT_NON_CONSUMABLE, &value);
+		
 		if (SUCCEEDED(hr))
 		{
 			if (wcsnlen(value, MAX_PATH) > 0)
