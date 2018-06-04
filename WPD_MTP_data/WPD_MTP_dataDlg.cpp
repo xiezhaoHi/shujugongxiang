@@ -875,6 +875,13 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CStri
 									strRepTemp.Replace(_T("\\"), _T("\\\\"));
 									ppAryData[index]->SetAt(ind, strRepTemp);
 								}
+								
+								if (-1 != strRepTemp.Find(_T("'")))
+								{
+									strRepTemp.Replace(_T("'"), _T("\\'"));
+									ppAryData[index]->SetAt(ind, strRepTemp);
+								}
+								
 							}
 
 
@@ -894,15 +901,28 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CStri
 							);
 							listUpdateSql.AddTail(strTemp);
 						}
-						RFidNum = ppAryDataSqlite[0]->GetSize(); //获取表列数
-						//更新phone端sqlite 状态
-						if (!sqOne.QuickInsertData("UPDATE work_record set SynchronState ='1' where Id=?;", ppAryDataSqlite, RFidCount, RFidNum, CSQLite::sqlite3_bind))
+
+
+
+						int retFlag = TRUE; //数据库操作
+						//更新mysql数据库
+						if (!UpdateMysqlDB(listUpdateSql))
 						{
-							CLogRecord::WriteRecordToFile(sqOne.GetLastErrorStr());
-							sqOne.CloseDataBase();
-							return FALSE;
+							ShowLog(_T("从phone更新记录数据服务端work_record失败!"));
+							CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+							retFlag = false;
 						}
-							
+						else
+						{
+							RFidNum = ppAryDataSqlite[0]->GetSize(); //获取表列数
+																	 //更新phone端sqlite 状态
+							if (!sqOne.QuickInsertData("UPDATE work_record set SynchronState ='1' where Id=?;", ppAryDataSqlite, RFidCount, RFidNum, CSQLite::sqlite3_bind))
+							{
+								CLogRecord::WriteRecordToFile(sqOne.GetLastErrorStr());
+								retFlag = false;
+							}
+						}
+
 						//销毁 缓存
 						for (int index = 0; index < RFidCount; ++index)
 						{
@@ -912,12 +932,15 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CStri
 						{
 							delete ppAryDataSqlite[index];
 						}
+						delete[] ppAryData;
+						delete[] ppAryDataSqlite;
+						if (!retFlag)//上面的步骤错误
+						{
+							sqOne.CloseDataBase();
+							return retFlag;
+						}
+
 					}
-
-
-					delete[] ppAryData;
-					delete[] ppAryDataSqlite;
-
 				}
 			}
 			sqOne.CloseDataBase();
@@ -934,13 +957,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CStri
 			return FALSE;
 		}
 
-		//更新mysql数据库
-		if (!UpdateMysqlDB(listUpdateSql))
-		{
-			ShowLog(_T("从phone更新记录数据服务端work_record失败!"));
-			CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
-			return FALSE;
-		}
+
 		
 		//同步服务端的数据
 
@@ -958,13 +975,13 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CStri
 					CStringA strTemp;
 					CStringArray** ppAryData = new CStringArray*[dataCount];
 					int index = 0;
-
+					CList<CStringA> updateMysqlData;
 					for each (std::vector<string> varVec in vecData)
 					{
 						//2.构建 更新 字符串 并保留起来,等到 同步完成 后 写入mysql数据库
 						strTemp.Format(("UPDATE work_record set SynchronState ='1'  where Id='%s';")
 							, (varVec[work_record_Id].c_str()));
-						m_updateMysqlData.AddTail(strTemp.GetBuffer());
+						updateMysqlData.AddTail(strTemp.GetBuffer());
 						ppAryData[index] = new CStringArray;
 						for each (string var in varVec)
 						{
@@ -993,6 +1010,14 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CStri
 					{
 						CLogRecord::WriteRecordToFile(sq.GetLastErrorStr()+ CpublicFun::AscToUnicode(strSql));
 						return FALSE;
+					}
+					else //同步成功 更改状态
+					{
+						POSITION posUpdate = updateMysqlData.GetHeadPosition();
+						while (posUpdate != NULL)
+						{
+							m_updateMysqlData.AddTail(updateMysqlData.GetNext(posUpdate));
+						}
 					}
 				}
 				else
@@ -1379,7 +1404,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_template(CString const&  strAreaID, CSt
 			strDeviceID = CpublicFun::AscToUnicode(m_areasDeviceID.GetNext(posDeviceID));
 
 			strSql.Format(_T("SELECT te.`Id`,te.`DeviceId`,te.`WorkTypeId`,te.ClassName,te.`Number`,te.`ProcessName`,te.`Results`,te.`SynchronState`,te.`CreateDate`,te.`CreateUserId` FROM `work_template` te,work_type tk \
-		where tk.DeviceId='%s'and tk.CreateDate >= '%s' and tk.CreateDate <= '%s' and tk.Id = te.WorkTypeId;\
+		where te.SynchronState ='0' or te.SynchronState ='1' and   tk.DeviceId='%s'and tk.CreateDate >= '%s' and tk.CreateDate <= '%s' and tk.Id = te.WorkTypeId;\
 		"), strDeviceID, strBeginTime, strCurTime);
 			//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
 			CList<CStringA> updateMysqlData;
@@ -2646,7 +2671,6 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 					{
 						ShowLog(_T("设备类型表(work_task) -同步失败!"));
 						ret = FALSE;
-
 					}
 
 					//6.同步表 work_record
@@ -2670,7 +2694,6 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 						ShowLog(_T("更新服务端数据库 同步状态失败 -同步失败!"));
 						ret = FALSE;
 					}
-					
 				}
 				
 
@@ -2692,8 +2715,8 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 						CStringArray strTypeId;
 						InitWorkTypeMap(strAreaID, strTypeId);
 						ASSERT(!strAreaID.IsEmpty());
-						
 						{
+							BOOL ret = TRUE;
 							//0.初始化该区域的设备缓存
 							if (!Init_area_devices(strAreaID, strTypeId))
 							{
@@ -2757,11 +2780,13 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 
 
 							//00.同步完成后,更改mysql 同步状态
+
 							if (!UpdateMysqlDB(m_updateMysqlData))
 							{
 								ShowLog(_T("更新服务端数据库 同步状态失败 -同步失败!"));
 								ret = FALSE;
 							}
+							
 						}
 		
 				}
