@@ -43,9 +43,12 @@ public:
 	afx_msg void OnLbnDblclkListMsg();
 	afx_msg void OnTvnSelchangedTreeAreas(NMHDR *pNMHDR, LRESULT *pResult);
 	/************************************************************************/
-	/*                                                                      */
-	/************************************************************************/
 
+	/************************************************************************/
+	//树型控件 图片资源
+	HICON		m_treeIconList[tree_max];
+	CImageList	m_treeImageList;
+	
 	CTreeCtrl m_tree_areas; //区域选择树
 	CStatic m_static_current_area; //当前选择区域
 	CListBox m_listShow;
@@ -57,20 +60,29 @@ public:
 	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapArea; //区域选择 ID-名字
 	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapAreaParent; //区域 对应的 ID-父亲ID
 	CMap<HTREEITEM, HTREEITEM, CString, LPCTSTR> m_mapTreeCtrToID; //树控件对应的节点ID
-
+	CMap< CString, LPCTSTR, HTREEITEM, HTREEITEM> m_mapTreeIDToCtrl; //树控件中 区域ID对应的 控件item;
 	//////
 	//work_type 关联 areas 表 展现在树形控件上
 	CTreeCtrl m_tree_type;
 	CMap< CString, LPCTSTR, HTREEITEM, HTREEITEM> m_mapAreaToCtr; //系统关联的树控件节点
 	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapTypeToArea; //系统选择
 	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapType; //系统选择 ID-名字
-	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapTypeParent; //系统 对应的 父亲ID
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapTypeParent; //设备ID对应的父ID 
 	CMap<HTREEITEM, HTREEITEM, CString, LPCTSTR> m_mapTreeCtrToIDType; //树控件对应的节点ID
 	
 	CComboBox m_combox_chooseArea;
 	HTREEITEM	m_treeCtrl_curItem; //区域树控件最新的选择项
 	HTREEITEM	m_treeCtrl_curItemType; //系统work_type树控件最新的选择项
 	//变量
+
+	//20180607
+	//单选框选中项
+	int  m_radioChoose;
+
+	//同步方向
+	int m_tongbu_dir; //从pc到终端tongbu_to_phone = 1, 从终端到pc tongbu_to_pc
+		
+
 private:
 	CString m_strIni; //配置文件的路径
 	MySQLConInfo  m_mysqlLogin; //mysql 数据库登陆 信息
@@ -83,6 +95,8 @@ private:
 public:
 	//配置文件初始化
 	bool InitConfig();
+	//初始化图片资源
+	bool InitResource();
 	//日志输出
 	void ShowLog(CString const&);
 	//等待设备 连接,连接后 获取指定路径下的文件,并备份到pc端
@@ -95,7 +109,7 @@ public:
 	BOOL  BeginSwitchData(CString const& strPath);
 
 	//work_type 建立相应的树
-	BOOL    InitWorkTypeTree(CString const&);
+	BOOL    InitDeviceTree(CString const&);
 	//获取相应区域的系统
 	BOOL  InitWorkTypeMap(CString const& , CStringArray & );
 	//展开树的所有节点
@@ -113,9 +127,11 @@ public:
 	//work_type 关联的 区域 在树控件上展示
 	void  FindChildTreeType(CMap<CString, LPCTSTR, HTREEITEM, HTREEITEM>& mapParent);
 	//初始化该区域的设备缓存
-	BOOL Init_area_devices(CString const& strAreaID,CStringArray const& );
-	//只选了区域,同步区域下的所有数据
-	BOOL Init_onlyarea_devices(CString const& strAreaID);
+	//20180607
+	/*
+	strAryDeviceID 返回设备
+	*/
+	BOOL Init_area_devices(CStringArray const& strAryAreaID, CStringArray & strAryDeviceID);
 	//更新mysql数据库
 	BOOL UpdateMysqlDB(CList<CStringA> const& list);
 
@@ -126,19 +142,36 @@ public:
 	BOOL  Synchrodata_device_type(CString const&  strAreaID, CString const& strDBPath);
 
 	//device_info 表处理
-	BOOL  Synchrodata_device_info(CString const&  strAreaID, CString const& strDBPath);
+	/*20180607 新增字段 
+	*tongbuDir 同步方向:pc到终端 终端到pc
+	*tongbuFw  同步范围: 区域   设备
+	*/
+
+	BOOL  Synchrodata_device_info(CString const&  strAreaID, CString const& strDBPath, int tongbuDir,int tongbuFw);
 
 	//work_type  表处理
-	BOOL  Synchrodata_work_type(CString const&  strAreaID, CString const& strDBPath);
+	/*20180607 新增字段
+	*tongbuDir 同步方向:pc到终端 终端到pc
+	*/
+	BOOL  Synchrodata_work_type(CString const&  strAreaID, CString const& strDBPath, int tongbuDir);
 
 	//work_template  表处理
-	BOOL  Synchrodata_work_template(CString const&  strAreaID, CString const& strDBPath);
+	/*20180607 新增字段
+	*tongbuDir 同步方向:pc到终端 终端到pc
+	*/
+	BOOL  Synchrodata_work_template(CString const&  strAreaID, CString const& strDBPath, int tongbuDir);
 
 	//work_task  表处理
-	BOOL Synchrodata_work_task(CString const&  strAreaID, CString const& strDBPath);
+	/*20180607 新增字段
+	*tongbuDir 同步方向:pc到终端 终端到pc
+	*/
+	BOOL Synchrodata_work_task(CString const&  strAreaID, CString const& strDBPath, int tongbuDir);
 
 	//work_record  表处理
-	BOOL  Synchrodata_work_record(CString const&  strAreaID, CString const& strDBPath);
+	/*20180607 新增字段
+	*tongbuDir 同步方向:pc到终端 终端到pc
+	*/
+	BOOL  Synchrodata_work_record(CString const&  strAreaID, CString const& strDBPath, int tongbuDir);
 
 	//sys_user 表处理
 	BOOL  Synchrodata_sys_user(CString const&  strAreaID, CString const& strDBPath);
@@ -150,4 +183,10 @@ public:
 	afx_msg void OnNMCustomdrawTreeAreas(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnNMCustomdrawTreeType(NMHDR *pNMHDR, LRESULT *pResult);
 	CStatic m_static_curchoose;
+	afx_msg void OnBnClickedButtonZdtopc();
+	afx_msg void OnBnClickedRadioUsrs();
+	afx_msg void OnBnClickedRadioDevices();
+	afx_msg void OnBnClickedRadioWork();
+	CButton m_button_zdtopc;
+	CButton m_bt_tophone;
 };

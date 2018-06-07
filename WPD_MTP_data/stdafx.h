@@ -54,6 +54,9 @@
 //测试开关
 //#define  MYTEST 
 
+//树形控件  显示图标与否
+#define  TREESHOWICON
+
 #include "logrecord/LogRecord.h"
 #include <stdio.h>
 #include <tchar.h>
@@ -220,3 +223,33 @@ enum work_type_tree
 	work_type_tree_AreaId,
 	work_type_tree_max
 };
+
+//资源
+enum tree_icon
+{
+	tree_system,
+	tree_device,
+	tree_max
+};
+//单选框选中项
+enum radio_name
+{
+	radio_user,
+	radio_devices,
+	radio_work
+};
+
+//同步方向
+enum tongbu_dir
+{
+	tongbu_to_phone = 1,
+	tongbu_to_pc
+};
+
+//同步范围选择
+enum tongbu_fw
+{
+	tongbu_fw_areas,
+	tongbu_fw_devices
+};
+
