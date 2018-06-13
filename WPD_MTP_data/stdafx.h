@@ -51,11 +51,15 @@
 #endif
 #endif
 
+#ifdef DEBUG
 //测试开关
-//#define  MYTEST 
-
+#define  MYTEST 
+#endif
 //树形控件  显示图标与否
 #define  TREESHOWICON
+
+//保留最近时间的数据 小时
+#define BACKUPSAVETIME 24
 
 #include "logrecord/LogRecord.h"
 #include <stdio.h>
@@ -98,6 +102,7 @@ enum  areas_enum
 	areas_ParentId	  ,
 	areas_CreateDate  ,
 	areas_CreateUserId,
+	areas_SynchronState
 };
 
 //device_type 表
@@ -125,6 +130,8 @@ enum device_info_enum
 	device_info_SynchronState ,
 	device_info_CreateDate	 ,
 	device_info_CreateUserId	 ,
+	 device_info_ParentId,
+	 device_info_IsBindRFID
 };
 
 //work_type  表
@@ -221,13 +228,14 @@ enum work_type_tree
 	work_type_tree_ParentId,
 	work_type_tree_Name,
 	work_type_tree_AreaId,
+	work_type_tree_SynchronState,
 	work_type_tree_max
 };
 
 //资源
 enum tree_icon
 {
-	tree_system,
+	tree_areas,
 	tree_device,
 	tree_max
 };
@@ -253,3 +261,19 @@ enum tongbu_fw
 	tongbu_fw_devices
 };
 
+//删除任务ID
+enum clear_work
+{
+	clear_work_id
+};
+
+//删除区域 设备 及相关的任务 和记录
+//设备表示
+
+#define  DELETEFLAG _T("3")
+
+enum delete_type
+{
+	delete_type_areas,
+	delete_type_devices
+};

@@ -5,9 +5,29 @@
 #pragma once
 #include "afxwin.h"
 #include "afxcmn.h"
+#include "afxdtctl.h"
 
-
-
+//删除树结构
+typedef struct deleteTree
+{
+	CString m_strID; //区域或者设备的ID
+	CString m_parentID;//区域或者设备父亲ID
+	CString m_strName; //设备或者区域名字
+	int  m_typeFlag; //区域或者设备的标志0区域 1设备
+	BOOL  m_deleteFlag; //删除标志  TRUE 删除 FALSE不删除
+	struct deleteTree *m_fistchild;//第一个儿子
+	struct deleteTree *m_nextsibling;//下一个兄弟
+	deleteTree()
+	{
+		m_parentID = _T("0");
+		m_strID = _T("0");
+		m_strName = _T("");
+		m_typeFlag = -1; //根节点
+		m_deleteFlag = FALSE;
+		m_fistchild = nullptr;
+		m_nextsibling = nullptr;
+	}
+}deleteTree;
 // CWPD_MTP_dataDlg 对话框
 class CWPD_MTP_dataDlg : public CDialogEx
 {
@@ -82,12 +102,29 @@ public:
 	//同步方向
 	int m_tongbu_dir; //从pc到终端tongbu_to_phone = 1, 从终端到pc tongbu_to_pc
 		
+					  //20180608 中间备份数据库 方便删除操作 回滚
+	CString m_copyName;
 
+	//20180612 增加一个删除的区域和设备树结构
+	deleteTree*	  m_deleteTree;
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapAreaParentDelete; //区域 对应的 ID-父亲ID
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapAreaStatusDelete; //区域 对应的 ID-同步状态  3 表示删除
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapAreaNameDelete; //区域 对应的 ID-名字
+	CMap<CString, LPCTSTR, deleteTree*, deleteTree*> m_mapAreaIDToNode; //区域ID对应的节点ID
+
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapTypeToAreaDelete; //系统选择ID-区域ID
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapTypeParentDelete; //设备ID对应的父ID 
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapTypeStatusDelete; //设备ID对应的-同步状态  3 表示删除
+	CMap<CString, LPCTSTR, CString, LPCTSTR> m_mapTypeNameDelete; //设备ID对应的-名字
 private:
 	CString m_strIni; //配置文件的路径
 	MySQLConInfo  m_mysqlLogin; //mysql 数据库登陆 信息
 	CStringArray m_aryFileName;//phone 上 文件的路径  分割成单个文件名
 	CString m_fileName; //sqlite 文件名
+	
+	BOOL	m_clearFlag; //删除操作标识
+	CString m_clearDeviceID; //删除操作的设备ID
+
 	
 	CList<CStringA> m_updateMysqlData; //更新mysql数据库 保存更新的sql语句.
 	CList<CStringA>	m_areasDeviceID; // 缓存所选区域中间设备ID
@@ -107,6 +144,11 @@ public:
 
 	//读取sqlite中的数据 传入mysql 数据库  读取mysql 数据库的数据 存入sqlite
 	BOOL  BeginSwitchData(CString const& strPath);
+
+	//20180608
+	//若上一次为删除操作,可以进行回滚操作
+	BOOL  BeginRebackData(CString const& );
+
 
 	//work_type 建立相应的树
 	BOOL    InitDeviceTree(CString const&);
@@ -175,6 +217,36 @@ public:
 
 	//sys_user 表处理
 	BOOL  Synchrodata_sys_user(CString const&  strAreaID, CString const& strDBPath);
+
+	//20180608
+	//删除历史数据 根据选择的时间范围 删除相应的 记录和历史
+	BOOL  Synchrodata_clear_record(CString const& strDBPath,CString const& strBeginT,CString const& strEndt);
+
+	//////////////////////////////////////////////////////////////////////////
+	//20180612 删除操作
+
+	//初始化删除树的内存结构体
+	BOOL  InitDeleteTreeStruct();
+
+	//递归删除树结构
+	BOOL  ClearDeleteTreeStruct(deleteTree* &);
+
+	//递归创建区域树结构
+	BOOL  CreateDeleteTreeStructAreas(deleteTree* &);
+	//构建子树
+	BOOL  CreateDeleteTreeStructAreasC(deleteTree* &);
+	//递归创建设备树结构
+	BOOL  CreateDeleteTreeStructDevices(deleteTree* &);
+
+	//删除相应的区域或者设备
+	BOOL  DeleteAreaAndDevice(CString const&);
+	
+	//递归获取 需要删除的区域和设备 包括他们的子区域和设备
+	BOOL  DeleteAreaAndDeviceFindID(deleteTree* &, CStringArray&, CStringArray&);
+
+	//递归获取需要删除项的子节点 及子节点的兄弟节点
+	BOOL  DeleteFindID(deleteTree* & treeNode
+		, CStringArray& strAryAreas, CStringArray& strAryDevices);
 	//////////////////////////////////////////////////////////////////////////
 
 	afx_msg void OnBnClickedRefreshDevs();
@@ -189,4 +261,14 @@ public:
 	afx_msg void OnBnClickedRadioWork();
 	CButton m_button_zdtopc;
 	CButton m_bt_tophone;
+	CDateTimeCtrl m_datetime_begin;
+	CDateTimeCtrl m_datetime_end;
+	afx_msg void OnBnClickedButtonBeginClear();
+	afx_msg void OnBnClickedButtonReback();
+	afx_msg void OnDtnDatetimechangeDatetimepickerEnd(NMHDR *pNMHDR, LRESULT *pResult);
+	CButton m_bt_begin_clear;
+	CButton m_bt_begin_reback;
+	afx_msg void OnDtnDatetimechangeDatetimepickerBegin(NMHDR *pNMHDR, LRESULT *pResult);
+
+	CStatic m_static_tree_show;
 };
