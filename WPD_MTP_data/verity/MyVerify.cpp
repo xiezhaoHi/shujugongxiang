@@ -22,6 +22,19 @@ MyVerify* MyVerify::GetInstance()
 	}
 	return m_singleton;
 }
+//md5 加密
+CStringA MyVerify::EncryptStrMD5(CStringA const& strInput)
+{
+	CStringA strRet = strInput;
+	if (!strRet.IsEmpty())
+	{
+		MD5 md;
+		md.update(strRet.GetBuffer());
+		strRet = md.toString().c_str();
+	}
+
+	return strRet;
+}
 CStringA MyVerify::GetEncryptStr(CStringA const& strInput) //获取加密后的数据
 {
 	CStringA strRet;
@@ -31,8 +44,6 @@ CStringA MyVerify::GetEncryptStr(CStringA const& strInput) //获取加密后的数据
 		if (GetLocoalIPandMac(m_strMac))
 		{
 			strRet = *(m_strMac.begin()) + m_strFileName;
-
-
 		}
 	}
 	else

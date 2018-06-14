@@ -285,6 +285,14 @@ BOOL CWPD_MTP_dataDlg::OnInitDialog()
 	//优先级为“一般”的线程，默认栈大小，创建时挂起 CREATE_SUSPENDED
 	m_threadShowDevs = AfxBeginThread(ShowAllDevices, this,THREAD_PRIORITY_NORMAL, 0);
 
+
+	//设置窗口标题 用户名字有效
+	if (!m_userRealName.IsEmpty())
+	{
+		SetWindowText(_T("数据共享 -- 用户名:") + m_userRealName);
+	}
+	
+
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -472,6 +480,13 @@ bool CWPD_MTP_dataDlg::InitConfig()
 	return true;
 }
 
+//设置用户的区域
+bool CWPD_MTP_dataDlg::SetUserAreaRealName(CString const& strArea,CString const& strName)
+{
+	m_userArea = strArea;
+	m_userRealName = strName;
+	return TRUE;
+}
 //初始化图片资源
 bool CWPD_MTP_dataDlg::InitResource()
 {
@@ -922,7 +937,18 @@ BOOL CWPD_MTP_dataDlg::Synchrodata_areas()
 			while (pos)
 			{
 				m_mapAreaParent.GetNextAssoc(pos, strKey, strValue);
-				if (strValue == PARENTFLAG) //为父亲节点
+				//用户区域非空
+				if (!m_userArea.IsEmpty())
+				{
+					if (strKey == m_userArea)
+					{
+						HTREEITEM item = m_tree_areas.InsertItem(m_mapArea[strKey], 0, 0, TVI_ROOT);// 在根结点上添加Parent
+						mapParentItem[strKey] = item;
+						m_mapTreeCtrToID[item] = strKey;
+						m_mapTreeIDToCtrl[strKey] = item;
+					}
+				}
+				else if (strValue == PARENTFLAG) //为父亲节点
 				{
 					HTREEITEM item = m_tree_areas.InsertItem(m_mapArea[strKey], 0, 0, TVI_ROOT);// 在根结点上添加Parent
 					mapParentItem[strKey] = item;
@@ -1408,43 +1434,48 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 			}
 			else if (tongbuDir == tongbu_to_phone) //从pc同步到终端
 			{
+
+				//////////////////////////////////////////////////////////////////////////
+
 				std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
 																//1.同步状态为 已删除，则删除phone端 
-		
-				strSql.Format(_T("Select Id from work_task where AllId in(SELECT Id FROM `work_task` where Level='0' and   SynchronState='2')\
+				//1.删除操作 删除同步状态为2的任务
+				{
+
+					strSql.Format(_T("Select Id from work_task where AllId in(SELECT Id FROM `work_task` where Level='0' and   SynchronState='2')\
 			or Id in(SELECT Id FROM `work_task` where Level = '0' and  SynchronState='2')\
 			or DeviceId not in(select Id from device_info);")
-					, strDeviceID, strDeviceID);
-				vecData.clear();
-				if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
-				{
-					int dataCount = vecData.size(), dataNum = 0;
-					if (dataCount > 0)//有数据可以同步
+						, strDeviceID, strDeviceID);
+					vecData.clear();
+					if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
 					{
-						
+						int dataCount = vecData.size(), dataNum = 0;
+						if (dataCount > 0)//有数据可以同步
 						{
-							CStringA strTemp;
-							CStringArray** ppAryData = new CStringArray*[dataCount];
-							for (int index = 0; index < dataCount; ++index)
-							{
-								ppAryData[index] = nullptr;
-							}
-							int index = 0;
-							for each (std::vector<string> varVec in vecData)
-							{
 
-								ppAryData[index] = new CStringArray;
-								ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[work_template_Id].c_str()));
+							{
+								CStringA strTemp;
+								CStringArray** ppAryData = new CStringArray*[dataCount];
+								for (int index = 0; index < dataCount; ++index)
+								{
+									ppAryData[index] = nullptr;
+								}
+								int index = 0;
+								for each (std::vector<string> varVec in vecData)
+								{
 
-								++index;
-							}
-							dataNum = ppAryData[0]->GetSize();
-							//1.删除任务
-							BOOL retTemp = sqOne.QuickDeletData("delete from work_task where Id=?", ppAryData
-								, dataCount, dataNum, CSQLite::sqlite3_bind);
-							//20180611-2.删除任务相关记录 
-							retTemp &= sqOne.QuickDeletData("DELETE FROM work_record where WorkTaskId =?;", ppAryData
-								, dataCount, dataNum, CSQLite::sqlite3_bind);
+									ppAryData[index] = new CStringArray;
+									ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[work_task_Id].c_str()));
+
+									++index;
+								}
+								dataNum = ppAryData[0]->GetSize();
+								//1.删除任务
+								BOOL retTemp = sqOne.QuickDeletData("delete from work_task where Id=?", ppAryData
+									, dataCount, dataNum, CSQLite::sqlite3_bind);
+								//20180611-2.删除任务相关记录 
+								retTemp &= sqOne.QuickDeletData("DELETE FROM work_record where WorkTaskId =?;", ppAryData
+									, dataCount, dataNum, CSQLite::sqlite3_bind);
 
 								for (int index = 0; index < dataCount; ++index)
 								{
@@ -1452,33 +1483,112 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 									delete ppAryData[index];
 								}
 
-							delete[] ppAryData;
+								delete[] ppAryData;
 
-							if (!ret)
+								if (!ret)
+								{
+									CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+									CLogRecord::WriteRecordToFile(sqOne.GetLastErrorStr());
+									ret &= FALSE;
+								}
+							}
+
+						}
+					}
+					else
+					{
+
+						CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+						ret &= FALSE;
+					}
+
+
+					//2.2 删除状态为3的任务
+					{
+						strSql.Format(_T("Select Id from work_task where AllId in(SELECT Id FROM `work_task` where Level='0' and   SynchronState='3')\
+			or Id in(SELECT Id FROM `work_task` where Level = '0' and  SynchronState='3')\
+			or DeviceId not in(select Id from device_info);")
+							, strDeviceID, strDeviceID);
+						vecData.clear();
+						if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+						{
+							int dataCount = vecData.size(), dataNum = 0;
+							if (dataCount > 0)//有数据可以同步
 							{
-								CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
-								CLogRecord::WriteRecordToFile(sqOne.GetLastErrorStr());
-								ret &= FALSE;
+								//2.2.1 删除终端数据库数据
+								CList<CStringA> deleteList;
+								{
+									CStringA strTemp;
+									CStringArray** ppAryData = new CStringArray*[dataCount];
+									for (int index = 0; index < dataCount; ++index)
+									{
+										ppAryData[index] = nullptr;
+									}
+									int index = 0;
+									for each (std::vector<string> varVec in vecData)
+									{
+										ppAryData[index] = new CStringArray;
+										ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[work_task_Id].c_str()));
+
+										++index;
+									}
+									dataNum = ppAryData[0]->GetSize();
+									//1.删除任务
+									BOOL retTemp = sqOne.QuickDeletData("delete from work_task where Id=?", ppAryData
+										, dataCount, dataNum, CSQLite::sqlite3_bind);
+									//20180611-2.删除任务相关记录 
+									retTemp &= sqOne.QuickDeletData("DELETE FROM work_record where WorkTaskId =?;", ppAryData
+										, dataCount, dataNum, CSQLite::sqlite3_bind);
+
+									CString strTempDelete;
+									for (int index = 0; index < dataCount; ++index)
+									{
+										strTempDelete.Format(_T("delete from work_task where Id='%s';"), ppAryData[index]->GetAt(work_task_Id));
+										deleteList.AddTail(CpublicFun::UnicodeToAsc(strTempDelete));
+
+										strTempDelete.Format(_T("DELETE FROM work_record where WorkTaskId ='%s';"), ppAryData[index]->GetAt(work_task_Id));
+										deleteList.AddTail(CpublicFun::UnicodeToAsc(strTempDelete));
+
+										delete ppAryData[index];
+									}
+
+									delete[] ppAryData;
+
+									if (!ret)
+									{
+										CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+										CLogRecord::WriteRecordToFile(sqOne.GetLastErrorStr());
+										ret &= FALSE;
+									}
+
+								}
+
+								//2.2.2 删除pc端数据
+								UpdateMysqlDB(deleteList);
 							}
 						}
+						else
+						{
+
+							CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+							CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
+							ret &= FALSE;
+						}
+
 						
+
 					}
-				}
-				else
-				{
-
-					CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
-					CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
-					ret &= FALSE;
+					
 				}
 
-
-
+				//2.同步新任务
 				strSql.Format(_T("SELECT `Id`,`DeviceId`,`RFId`,`WorkName`,`WorkTemplateId`,`Cycle`,`StartTime`,`Executor`,`State`,`SynchronState`,`CreateDate`,`CreateUserId`,Level,Frequency,AllId,ExecutorTime,ExecutorLevel,TaskRemark,OverdueRemark FROM `work_task` \
 		where DeviceId='%s' and SynchronState='0' and State<>'0' and CreateDate >= '%s' and CreateDate <= '%s';\
 		"), strDeviceID, strBeginTime, strCurTime);
 				//2.同步选择区域  未同步的数据  并把同步状态改为 已同步
 				CList<CStringA> updateMysqlData;
+				vecData.clear();
 				if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
 				{
 					int dataCount = vecData.size(), dataNum = 0;
@@ -1708,12 +1818,10 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_template(CString const&  strAreaID, CSt
 						dataNum = ppAryData[0]->GetSize();
 						BOOL ret = sqOne.QuickDeletData("delete from work_template where Id=?", ppAryData
 							, dataCount, dataNum, CSQLite::sqlite3_bind);
-						if (ret)
+
+						for (int index = 0; index < dataCount; ++index)
 						{
-							for (int index = 0; index < dataCount; ++index)
-							{
-								delete ppAryData[index];
-							}
+							delete ppAryData[index];
 						}
 						delete[] ppAryData;
 
@@ -2449,9 +2557,6 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_device_type(CString const&  strAreaID, CStri
 	}
 	
 }
-
-
-
 
 
 //初始化删除树的内存结构体
@@ -3818,7 +3923,7 @@ UINT MyControllingFunction(LPVOID pParam)
 	{
 		strTitle = _T("提示:从终端同步到PC");
 	}
-	if (IDYES == pDlg->MessageBox(strText,strTitle, MB_YESNO))
+	if (IDYES == pDlg->MessageBox(strText,strTitle, MB_YESNO|MB_TOPMOST))
 	{
 	}
 	else
@@ -3913,7 +4018,7 @@ void CWPD_MTP_dataDlg::OnBnClickedBtTophone()
 		m_threadFlag = TRUE;
 	}
 	else
-		ShowLog(_T("连接失败,请重新插入设备再重试!!"));
+		ShowLog(_T("连接设备失败,请重新插拔设备再重试!!"));
 }
 LRESULT CWPD_MTP_dataDlg::OnMyDeviceChange(WPARAM wParam, LPARAM lParam)
 {
@@ -4359,7 +4464,7 @@ void CWPD_MTP_dataDlg::OnBnClickedButtonBeginClear()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	m_clearFlag = TRUE;
-	if (IDYES == MessageBox(_T("请点击[是]开始清除操作!"), _T("提示:清除操作!"), MB_YESNO))
+	if (IDYES == MessageBox(_T("请点击[是]开始清除操作!"), _T("提示:清除操作!"), MB_YESNO|MB_TOPMOST))
 	{
 		AfxBeginThread(BeginClearThread, this);
 		ShowLog(_T("开始进行清除操作!"));
@@ -4380,7 +4485,7 @@ UINT BeginRebackThread(LPVOID pParam)
 void CWPD_MTP_dataDlg::OnBnClickedButtonReback()
 {
 	if (IDNO == MessageBox(_T("请点击[是]开始恢复操作!")
-		, _T("提示:恢复操作!"), MB_YESNO))
+		, _T("提示:恢复操作!"), MB_YESNO | MB_TOPMOST))
 	{
 		ShowLog(_T("取消恢复操作"));
 		return;

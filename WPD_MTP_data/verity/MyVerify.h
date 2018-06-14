@@ -27,5 +27,7 @@ public:
 	~MyVerify();
 	static MyVerify* m_singleton;
 	static MyVerify* GetInstance();
+	//md5 º”√‹
+	CStringA EncryptStrMD5(CStringA const&);
 };
 

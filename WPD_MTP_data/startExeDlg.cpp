@@ -6,7 +6,8 @@
 #include "WPD_MTP_data.h"
 #include "startExeDlg.h"
 #include "afxdialogex.h"
-#include "verity/MyVerify.h"
+
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -88,7 +89,7 @@ void CstartExeDlg::OnBnClickedButtonStart()
 	strInput.Trim();
 	if (strInput.IsEmpty())
 	{
-		MessageBox(_T("请输入注册码!"));
+		MessageBox(_T("请输入注册码!"),_T("提示"),MB_TOPMOST | MB_OK);
 		return;
 	}
 	//
@@ -101,7 +102,7 @@ void CstartExeDlg::OnBnClickedButtonStart()
 		}
 	}
 	else
-		MessageBox(_T("请输入正确的注册码!"));
+		MessageBox(_T("请输入正确的注册码!"), _T("提示"), MB_TOPMOST | MB_OK);
 	
 }
 

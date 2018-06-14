@@ -194,6 +194,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CommonFunctions.h" />
+    <ClInclude Include="LogDlg.h" />
     <ClInclude Include="logrecord\LogRecord.h" />
     <ClInclude Include="logrecord\publicFun.h" />
     <ClInclude Include="mysql\MyDataBase.h" />
@@ -217,6 +218,7 @@
     <ClCompile Include="DeviceCapabilities.cpp" />
     <ClCompile Include="DeviceEnumeration.cpp" />
     <ClCompile Include="DeviceEvents.cpp" />
+    <ClCompile Include="LogDlg.cpp" />
     <ClCompile Include="logrecord\LogRecord.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>

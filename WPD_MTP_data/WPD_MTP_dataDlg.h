@@ -128,8 +128,15 @@ private:
 	
 	CList<CStringA> m_updateMysqlData; //更新mysql数据库 保存更新的sql语句.
 	CList<CStringA>	m_areasDeviceID; // 缓存所选区域中间设备ID
+
+	//20180614 用户管辖的区域
+	CString  m_userArea;
+	CString  m_userRealName;
 	//方法
 public:
+	//设置用户的区域
+	bool SetUserAreaRealName(CString const& strArea, CString const&);
+
 	//配置文件初始化
 	bool InitConfig();
 	//初始化图片资源

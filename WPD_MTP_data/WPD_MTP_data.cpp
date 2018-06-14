@@ -8,6 +8,7 @@
 #include "startExeDlg.h"
 #include "MytestDlg.h"
 #include "verity/MyVerify.h"
+#include "LogDlg.h"
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -97,8 +98,8 @@ BOOL CWPD_MTP_dataApp::InitInstance()
 
 	//用户身份验证
 	INT_PTR ret ;
+	CString strUserArea,strUserName;
 #ifndef DEBUG
-
 	if (!MyVerify::GetInstance()->VerityExe())
 	{
 		CstartExeDlg startDlg;
@@ -115,11 +116,23 @@ BOOL CWPD_MTP_dataApp::InitInstance()
 		AfxMessageBox(_T("身份验证失败,用户未注册!"));
 		return FALSE;
 	}
+	CLogDlg logDlg;
+	 ret = logDlg.DoModal();
+
+	if (ret != IDOK)
+	{
+		CLogRecord::WriteRecordToFile(_T("取消登录!"));
+		AfxMessageBox(_T("用户登录失败,取消登录!"));
+		return FALSE;
+	}
+	strUserArea = logDlg.GetUserAreas();
+	strUserName = logDlg.GetUserRealName();
 #endif
 	
 
 	CLogRecord::WriteRecordToFile(_T("--------------程序启动!--------------"));
 	CWPD_MTP_dataDlg dlg;
+	dlg.SetUserAreaRealName(strUserArea,strUserName);
 	m_pMainWnd = &dlg;
 	INT_PTR nResponse = dlg.DoModal();
 	if (nResponse == IDOK)

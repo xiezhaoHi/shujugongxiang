@@ -53,7 +53,7 @@
 
 #ifdef DEBUG
 //测试开关
-#define  MYTEST 
+//#define  MYTEST 
 #endif
 //树形控件  显示图标与否
 #define  TREESHOWICON
@@ -82,7 +82,7 @@ using namespace Microsoft::WRL;
 #include "logrecord/publicFun.h"
 #include "sqlite3/CSQLite.h"
 #include "mysql/MyDataBase.h"
-
+#include "verity/MyVerify.h"
 
 //update 数据库时 多条sql语句 连接 批量执行
 #define  UPDATEMAX 100 
@@ -276,4 +276,14 @@ enum delete_type
 {
 	delete_type_areas,
 	delete_type_devices
+};
+
+//20180614 用户信息
+enum user_infoData
+{
+	user_infoData_name, //用户名
+	user_infoData_pwd,
+	user_infoData_area, //用户管理的区域
+	user_infoData_pwk, //加密码
+	user_infoData_realName, //显示名字
 };

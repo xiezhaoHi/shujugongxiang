@@ -31,6 +31,9 @@
     <Filter Include="aec">
       <UniqueIdentifier>{bce65367-17fa-4c03-8b45-a1fb563b2279}</UniqueIdentifier>
     </Filter>
+    <Filter Include="登陆">
+      <UniqueIdentifier>{108358b7-8f40-4e7b-aad8-b071feae8f2d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -84,6 +87,9 @@
     <ClInclude Include="MytestDlg.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="LogDlg.h">
+      <Filter>登陆</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WPD_MTP_data.cpp">
@@ -133,6 +139,9 @@
     </ClCompile>
     <ClCompile Include="MytestDlg.cpp">
       <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="LogDlg.cpp">
+      <Filter>登陆</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
