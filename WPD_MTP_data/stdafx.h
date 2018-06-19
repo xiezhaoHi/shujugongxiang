@@ -53,7 +53,7 @@
 
 #ifdef DEBUG
 //测试开关
-//#define  MYTEST 
+#define  MYTEST 
 #endif
 //树形控件  显示图标与否
 #define  TREESHOWICON

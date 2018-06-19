@@ -1039,7 +1039,12 @@ strAreaID  选择区域ID 暂时不用
 BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CString const& strDBPath, int tongbuDir)
 {
 	try {
-		
+		//0.开始数据删除操作
+		if (!PathFileExists(strDBPath))
+		{
+			CLogRecord::WriteRecordToFile(_T("数据库文件不存在:") + strDBPath);
+			return FALSE;
+		}
 
 		//限定一个时间范围
 		COleDateTime  curTime = COleDateTime::GetTickCount();
@@ -1296,6 +1301,12 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 {
 	try
 	{
+		//0.开始数据删除操作
+		if (!PathFileExists(strDBPath))
+		{
+			CLogRecord::WriteRecordToFile(_T("数据库文件不存在:") + strDBPath);
+			return FALSE;
+		}
 		//限定一个时间范围
 		COleDateTime  curTime = COleDateTime::GetTickCount();
 		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
@@ -1473,9 +1484,15 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 								//1.删除任务
 								BOOL retTemp = sqOne.QuickDeletData("delete from work_task where Id=?", ppAryData
 									, dataCount, dataNum, CSQLite::sqlite3_bind);
+
+								retTemp &= sqOne.QuickDeletData("delete from work_task where AllId=?", ppAryData
+									, dataCount, dataNum, CSQLite::sqlite3_bind);
+
 								//20180611-2.删除任务相关记录 
 								retTemp &= sqOne.QuickDeletData("DELETE FROM work_record where WorkTaskId =?;", ppAryData
 									, dataCount, dataNum, CSQLite::sqlite3_bind);
+
+								retTemp &= sqOne.DeleteData("delete from work_record where WorkTaskId not in(select Id from work_task)");
 
 								for (int index = 0; index < dataCount; ++index)
 								{
@@ -1537,9 +1554,14 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 									//1.删除任务
 									BOOL retTemp = sqOne.QuickDeletData("delete from work_task where Id=?", ppAryData
 										, dataCount, dataNum, CSQLite::sqlite3_bind);
+									retTemp &= sqOne.QuickDeletData("delete from work_task where AllId=?", ppAryData
+										, dataCount, dataNum, CSQLite::sqlite3_bind);
+
 									//20180611-2.删除任务相关记录 
 									retTemp &= sqOne.QuickDeletData("DELETE FROM work_record where WorkTaskId =?;", ppAryData
 										, dataCount, dataNum, CSQLite::sqlite3_bind);
+
+									retTemp &= sqOne.DeleteData("delete from work_record where WorkTaskId not in(select Id from work_task)");
 
 									CString strTempDelete;
 									for (int index = 0; index < dataCount; ++index)
@@ -1704,6 +1726,12 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_template(CString const&  strAreaID, CSt
 		if (tongbuDir == tongbu_to_pc)
 		{
 			return TRUE;
+		}
+		//0.开始数据删除操作
+		if (!PathFileExists(strDBPath))
+		{
+			CLogRecord::WriteRecordToFile(_T("数据库文件不存在:") + strDBPath);
+			return FALSE;
 		}
 
 		//限定一个时间范围
@@ -1882,7 +1910,12 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_type(CString const&  strAreaID, CString
 		{
 			return TRUE;
 		}
-
+		//0.开始数据删除操作
+		if (!PathFileExists(strDBPath))
+		{
+			CLogRecord::WriteRecordToFile(_T("数据库文件不存在:") + strDBPath);
+			return FALSE;
+		}
 		//限定一个时间范围
 		COleDateTime  curTime = COleDateTime::GetTickCount();
 		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
@@ -2582,20 +2615,22 @@ BOOL   CWPD_MTP_dataDlg::InitDeleteTreeStruct()
 		if (strValue == PARENTFLAG) //为父节点
 		{
 			deleteTree* treeNodeTemp = nullptr;
-			treeNodeTemp = new deleteTree;
-			treeNodeTemp->m_strID = strKey;
-			if (m_mapTypeStatusDelete[strKey] == DELETEFLAG)//标志删除
-			{
-				treeNodeTemp->m_deleteFlag = TRUE;
-			}
-			else
-				treeNodeTemp->m_deleteFlag = FALSE;
-			treeNodeTemp->m_typeFlag = delete_type_devices; //0区域 1设备
-			treeNodeTemp->m_parentID = strValue;
-			treeNodeTemp->m_strName = m_mapTypeNameDelete[strKey];
+			
 
 			if (m_mapTypeToAreaDelete[strKey] == PARENTFLAG || m_mapTypeToAreaDelete[strKey] == _T(""))//区域ID为0 表示直接是根节点
 			{
+				treeNodeTemp = new deleteTree;
+				treeNodeTemp->m_strID = strKey;
+				if (m_mapTypeStatusDelete[strKey] == DELETEFLAG)//标志删除
+				{
+					treeNodeTemp->m_deleteFlag = TRUE;
+				}
+				else
+					treeNodeTemp->m_deleteFlag = FALSE;
+				treeNodeTemp->m_typeFlag = delete_type_devices; //0区域 1设备
+				treeNodeTemp->m_parentID = strValue;
+				treeNodeTemp->m_strName = m_mapTypeNameDelete[strKey];
+
 				deleteTree* treeTemp = m_deleteTree->m_fistchild;
 				if (treeTemp == nullptr) //1.表示没有区域 ,只有设备
 				{
@@ -2621,6 +2656,18 @@ BOOL   CWPD_MTP_dataDlg::InitDeleteTreeStruct()
 			}
 			else if(m_mapAreaIDToNode[m_mapTypeToAreaDelete[strKey]] != nullptr) //存在该设备区域的节点
 			{
+				treeNodeTemp = new deleteTree;
+				treeNodeTemp->m_strID = strKey;
+				if (m_mapTypeStatusDelete[strKey] == DELETEFLAG)//标志删除
+				{
+					treeNodeTemp->m_deleteFlag = TRUE;
+				}
+				else
+					treeNodeTemp->m_deleteFlag = FALSE;
+				treeNodeTemp->m_typeFlag = delete_type_devices; //0区域 1设备
+				treeNodeTemp->m_parentID = strValue;
+				treeNodeTemp->m_strName = m_mapTypeNameDelete[strKey];
+
 				deleteTree* treeTemp = m_mapAreaIDToNode[m_mapTypeToAreaDelete[strKey]]->m_fistchild;
 				if (treeTemp == nullptr) //没有相应的第一个子设备或者系统
 				{
@@ -2737,13 +2784,45 @@ BOOL  CWPD_MTP_dataDlg::CreateDeleteTreeStructAreasC(deleteTree* &treeNode)
 //递归创建区域树结构
 BOOL   CWPD_MTP_dataDlg::CreateDeleteTreeStructAreas(deleteTree* &treeNode)
 {
+
+	//0.重置中间结构
+	m_mapAreaIDToNode.RemoveAll();
 	//1.根节点初始化该节点
 	if (!treeNode)
 	{
 		treeNode = new deleteTree;
+		//1.1 20180618 新增一项 用户权限. 只构建当前登陆用户的 设备树 
+		//用户区域非空
+		if (!m_userArea.IsEmpty())
+		{
+			CString strKey, strValue;
+
+			POSITION pos = m_mapAreaParentDelete.GetStartPosition();
+
+			while (pos)
+			{
+				
+				m_mapAreaParentDelete.GetNextAssoc(pos, strKey, strValue);
+				if (strKey == m_userArea) //为父亲节点
+				{
+					
+					treeNode->m_strID = strKey;
+					if (m_mapAreaStatusDelete[strKey] == DELETEFLAG)//标志删除
+					{
+						treeNode->m_deleteFlag = TRUE;
+					}
+					else
+						treeNode->m_deleteFlag = FALSE;
+					treeNode->m_typeFlag = delete_type_areas; //0区域 1设备
+					treeNode->m_parentID = strValue;
+					treeNode->m_strName = m_mapAreaNameDelete[strKey];
+
+					m_mapAreaIDToNode[strKey] = treeNode;
+				}
+			}
+		}
 	}
-	//重置中间结构
-	m_mapAreaIDToNode.RemoveAll();
+	
 	//2.获取根节点的儿子节点
 	CreateDeleteTreeStructAreasC(treeNode);
 
@@ -2868,7 +2947,7 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 	{
 		//1.获取内存树种需要删除的数据结构 分区域和设备两个数组保存
 		//没有区域和设备的数据
-		if (m_deleteTree == nullptr || (m_deleteTree->m_fistchild == nullptr && m_deleteTree->m_nextsibling == nullptr))
+		if (m_deleteTree == nullptr)
 		{
 			return TRUE;
 		}
@@ -2895,15 +2974,16 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 
 				int dataNum = strAryDevices.GetSize();
 				int dataCount = 1;
-				CStringArray** ppAryData = new CStringArray*[1];
-				for (int index = 0; index < 1; ++index)
+				CStringArray** ppAryData = new CStringArray*[dataNum];
+				for (int index = 0; index < dataNum; ++index)
 				{
-					ppAryData[index] = nullptr;
+					ppAryData[index] = new CStringArray;
+					ppAryData[index]->Add(strAryDevices.GetAt(index));
 				}
-				ppAryData[0] = &strAryDevices;
+				
 				BOOL ret = TRUE;
 				ret &= sq.QuickDeletData("delete from device_info where Id=?", ppAryData
-					, dataCount, dataNum, CSQLite::sqlite3_bind);
+					, dataNum, dataCount, CSQLite::sqlite3_bind);
 
 
 				ret &= sq.DeleteData("DELETE FROM work_type WHERE DeviceId NOT in (SELECT id FROM device_info);\
@@ -2911,33 +2991,37 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 				DELETE FROM work_task WHERE DeviceId NOT in(SELECT id FROM device_info);\
 				DELETE FROM work_record WHERE DeviceId NOT in(SELECT id from device_info);");
 
-
-				CList<CStringA> strAryDelete;
-				CStringA strTemp;
-				//区域
-				for (int index = 0; index < strAryDevices.GetSize();++index)
+				//删除本地数据成功
+				if (ret)
 				{
-					strTemp.Format(("delete from device_info where Id='%s';")
-						, (CpublicFun::UnicodeToAsc(strAryDevices.GetAt(index))));
-					strAryDelete.AddTail(strTemp.GetBuffer());
-				}
+					CList<CStringA> strAryDelete;
+					CStringA strTemp;
+					//区域
+					for (int index = 0; index < strAryDevices.GetSize(); ++index)
+					{
+						strTemp.Format(("delete from device_info where Id='%s';")
+							, (CpublicFun::UnicodeToAsc(strAryDevices.GetAt(index))));
+						strAryDelete.AddTail(strTemp.GetBuffer());
+					}
 
-				for (int index = 0; index < strAryAreas.GetSize(); ++index)
-				{
-					strTemp.Format(("delete from areas where Id='%s';")
-						, (CpublicFun::UnicodeToAsc(strAryAreas.GetAt(index))));
-					strAryDelete.AddTail(strTemp.GetBuffer());
-				}
+					for (int index = 0; index < strAryAreas.GetSize(); ++index)
+					{
+						strTemp.Format(("delete from areas where Id='%s';")
+							, (CpublicFun::UnicodeToAsc(strAryAreas.GetAt(index))));
+						strAryDelete.AddTail(strTemp.GetBuffer());
+					}
 
 
-				ret &=UpdateMysqlDB(strAryDelete);
+					ret &= UpdateMysqlDB(strAryDelete);
 
-				strTemp.Format(("DELETE FROM work_type WHERE DeviceId NOT in (SELECT id FROM device_info);\
+					strTemp.Format(("DELETE FROM work_type WHERE DeviceId NOT in (SELECT id FROM device_info);\
 					DELETE FROM work_template WHERE WorkTypeId NOT in(SELECT id FROM work_type);\
 				DELETE FROM work_task WHERE DeviceId NOT in(SELECT id FROM device_info);\
 				DELETE FROM work_record WHERE DeviceId NOT in(SELECT id from device_info);"));
 
-				ret &= CMyDataBase::GetInstance()->Query(strTemp.GetBuffer());
+					ret &= CMyDataBase::GetInstance()->Query(strTemp.GetBuffer());
+
+				}
 				
 				retRes = ret;
 
@@ -3090,6 +3174,14 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_sys_user(CString const&  strAreaID, CString 
 {
 	try
 	{
+	
+		//0.开始数据删除操作
+		if (!PathFileExists(strDBPath))
+		{
+			CLogRecord::WriteRecordToFile(_T("数据库文件不存在:") + strDBPath);
+			return FALSE;
+		}
+
 		BOOL retRes = TRUE;
 		CSQLite sqOne;
 		if (sqOne.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
@@ -3251,6 +3343,12 @@ work_type 字段Level为0的表示 主任务 当State字段为3 表示已完成 可以删除
 */
 BOOL  CWPD_MTP_dataDlg::Synchrodata_clear_record(CString const& strDBPath, CString const& strBeginT, CString const& strEndt)
 {
+	//0.开始数据删除操作
+	if (!PathFileExists(strDBPath))
+	{
+		CLogRecord::WriteRecordToFile(_T("数据库文件不存在:") + strDBPath);
+		return FALSE;
+	}
 	CSQLite sqOne;
 	BOOL ret = TRUE;
 	if (sqOne.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
@@ -3951,6 +4049,10 @@ UINT MyControllingFunction(LPVOID pParam)
 	pDlg->m_threadFlag = FALSE;
 	pDlg->m_bt_tophone.EnableWindow(TRUE);
 	pDlg->m_button_zdtopc.EnableWindow(TRUE);
+	if (pDlg->m_radioChoose == radio_user)//用户选中
+	{
+		pDlg->m_button_zdtopc.EnableWindow(FALSE);
+	}
 	return 0;
 #endif
 	//1.备份phone数据到 pc本地
@@ -3982,6 +4084,11 @@ UINT MyControllingFunction(LPVOID pParam)
 	pDlg->m_threadFlag = FALSE;
 	pDlg->m_bt_tophone.EnableWindow(TRUE);
 	pDlg->m_button_zdtopc.EnableWindow(TRUE);
+	if (pDlg->m_radioChoose == radio_user)//用户选中
+	{
+		pDlg->m_button_zdtopc.EnableWindow(FALSE);
+	}
+	
 	if (ret)
 	{
 		pDlg->ShowLog(_T("同步完成..."));
@@ -4142,8 +4249,10 @@ void CWPD_MTP_dataDlg::OnClose()
 	//若存在中间文件,则删除
 	if (!gFilePath.IsEmpty())
 	{
+#ifndef MYTEST
 		//删除当前的中间文件
 		DeleteFile(gFilePath);
+#endif
 	}
 	//关闭打开的设备
 
