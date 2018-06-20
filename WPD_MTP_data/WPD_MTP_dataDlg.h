@@ -184,8 +184,8 @@ public:
 	//更新mysql数据库
 	BOOL UpdateMysqlDB(CList<CStringA> const& list);
 
-	//主要初始 区域选择combox
-	BOOL Synchrodata_areas();
+	//主要初始 区域选择树
+	BOOL Init_areas_tree();
 	
 	//device_type 表处理
 	BOOL  Synchrodata_device_type(CString const&  strAreaID, CString const& strDBPath);
@@ -195,8 +195,15 @@ public:
 	*tongbuDir 同步方向:pc到终端 终端到pc
 	*tongbuFw  同步范围: 区域   设备
 	*/
-
 	BOOL  Synchrodata_device_info(CString const&  strAreaID, CString const& strDBPath, int tongbuDir,int tongbuFw);
+
+	//areas
+	/*
+	* 20180620 增加功能,同步设备的时候,同步用户相应的区域
+	*/
+	BOOL  Synchrodata_areas(CString const& strDBPath, int tongbuDir);
+
+
 
 	//work_type  表处理
 	/*20180607 新增字段

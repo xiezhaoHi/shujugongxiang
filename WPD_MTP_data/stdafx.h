@@ -287,3 +287,19 @@ enum user_infoData
 	user_infoData_pwk, //加密码
 	user_infoData_realName, //显示名字
 };
+
+//20180620 区域表
+enum areas_data
+{
+	areas_data_Id = 0,
+	areas_data_Code,
+	areas_data_Name,
+	areas_data_ParentId,
+	areas_data_CreateDate,
+	areas_data_CreateUserId,
+	areas_data_Info,
+	areas_data_SynchronState,
+	areas_data_isDelete,
+};
+//终端数据库 areas 字段数量
+#define PHONE_AREAS_NUM  6
