@@ -15,6 +15,7 @@ typedef struct deleteTree
 	CString m_strName; //设备或者区域名字
 	int  m_typeFlag; //区域或者设备的标志0区域 1设备
 	BOOL  m_deleteFlag; //删除标志  TRUE 删除 FALSE不删除
+	CStringA	  m_strDeleteFlag; //删除标志  2 欲删除  3 真删除
 	struct deleteTree *m_fistchild;//第一个儿子
 	struct deleteTree *m_nextsibling;//下一个兄弟
 	deleteTree()
@@ -256,11 +257,13 @@ public:
 	BOOL  DeleteAreaAndDevice(CString const&);
 	
 	//递归获取 需要删除的区域和设备 包括他们的子区域和设备
-	BOOL  DeleteAreaAndDeviceFindID(deleteTree* &, CStringArray&, CStringArray&);
+	BOOL  DeleteAreaAndDeviceFindID(deleteTree* &, CMap<CString,LPCTSTR,CString,LPCTSTR>&, CMap<CString, LPCTSTR, CString, LPCTSTR>&
+		, CMap<CString, LPCTSTR, CString, LPCTSTR>&, CMap<CString, LPCTSTR, CString, LPCTSTR>&);
 
 	//递归获取需要删除项的子节点 及子节点的兄弟节点
 	BOOL  DeleteFindID(deleteTree* & treeNode
-		, CStringArray& strAryAreas, CStringArray& strAryDevices);
+		, CMap<CString, LPCTSTR, CString, LPCTSTR>& strAryAreas
+		, CMap<CString, LPCTSTR, CString, LPCTSTR>& strAryDevices);
 	//////////////////////////////////////////////////////////////////////////
 
 	afx_msg void OnBnClickedRefreshDevs();

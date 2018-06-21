@@ -2862,12 +2862,14 @@ BOOL   CWPD_MTP_dataDlg::InitDeleteTreeStruct()
 			{
 				treeNodeTemp = new deleteTree;
 				treeNodeTemp->m_strID = strKey;
-				if (m_mapTypeStatusDelete[strKey] == DELETEFLAG)//标志删除
+				if (m_mapTypeStatusDelete[strKey] == DELETEFLAG
+					|| m_mapTypeStatusDelete[strKey] == DELETEFLAG_WANT)//标志删除
 				{
 					treeNodeTemp->m_deleteFlag = TRUE;
 				}
 				else
 					treeNodeTemp->m_deleteFlag = FALSE;
+				treeNodeTemp->m_strDeleteFlag = m_mapTypeStatusDelete[strKey];
 				treeNodeTemp->m_typeFlag = delete_type_devices; //0区域 1设备
 				treeNodeTemp->m_parentID = strValue;
 				treeNodeTemp->m_strName = m_mapTypeNameDelete[strKey];
@@ -2899,12 +2901,14 @@ BOOL   CWPD_MTP_dataDlg::InitDeleteTreeStruct()
 			{
 				treeNodeTemp = new deleteTree;
 				treeNodeTemp->m_strID = strKey;
-				if (m_mapTypeStatusDelete[strKey] == DELETEFLAG)//标志删除
+				if (m_mapTypeStatusDelete[strKey] == DELETEFLAG
+					||m_mapTypeStatusDelete[strKey] == DELETEFLAG_WANT)//标志删除
 				{
 					treeNodeTemp->m_deleteFlag = TRUE;
 				}
 				else
 					treeNodeTemp->m_deleteFlag = FALSE;
+				treeNodeTemp->m_strDeleteFlag = m_mapTypeStatusDelete[strKey];
 				treeNodeTemp->m_typeFlag = delete_type_devices; //0区域 1设备
 				treeNodeTemp->m_parentID = strValue;
 				treeNodeTemp->m_strName = m_mapTypeNameDelete[strKey];
@@ -2996,12 +3000,14 @@ BOOL  CWPD_MTP_dataDlg::CreateDeleteTreeStructAreasC(deleteTree* &treeNode)
 			{
 				treeNodeTemp = new deleteTree;
 				treeNodeTemp->m_strID = strKey;
-				if (m_mapAreaStatusDelete[strKey] == DELETEFLAG)//标志删除
+				if (m_mapAreaStatusDelete[strKey] == DELETEFLAG
+					|| m_mapAreaStatusDelete[strKey] == DELETEFLAG_WANT)//标志删除
 				{
 					treeNodeTemp->m_deleteFlag = TRUE;
 				}
 				else
 					treeNodeTemp->m_deleteFlag = FALSE;
+				treeNodeTemp->m_strDeleteFlag = m_mapAreaStatusDelete[strKey];
 				treeNodeTemp->m_typeFlag = delete_type_areas; //0区域 1设备
 				treeNodeTemp->m_parentID = strValue;
 				treeNodeTemp->m_strName = m_mapAreaNameDelete[strKey];
@@ -3048,12 +3054,14 @@ BOOL   CWPD_MTP_dataDlg::CreateDeleteTreeStructAreas(deleteTree* &treeNode)
 				{
 					
 					treeNode->m_strID = strKey;
-					if (m_mapAreaStatusDelete[strKey] == DELETEFLAG)//标志删除
+					if (m_mapAreaStatusDelete[strKey] == DELETEFLAG
+						|| m_mapAreaStatusDelete[strKey] == DELETEFLAG_WANT)//标志删除
 					{
 						treeNode->m_deleteFlag = TRUE;
 					}
 					else
 						treeNode->m_deleteFlag = FALSE;
+					treeNode->m_strDeleteFlag = m_mapAreaStatusDelete[strKey];
 					treeNode->m_typeFlag = delete_type_areas; //0区域 1设备
 					treeNode->m_parentID = strValue;
 					treeNode->m_strName = m_mapAreaNameDelete[strKey];
@@ -3095,12 +3103,14 @@ BOOL  CWPD_MTP_dataDlg::CreateDeleteTreeStructDevices(deleteTree* &treeNode)
 			deleteTree* treeNodeTemp = nullptr;
 			treeNodeTemp = new deleteTree;
 			treeNodeTemp->m_strID = strKey;
-			if (m_mapTypeStatusDelete[strKey] == DELETEFLAG)//标志删除
+			if (m_mapTypeStatusDelete[strKey] == DELETEFLAG
+				||m_mapTypeStatusDelete[strKey] == DELETEFLAG_WANT)//标志删除
 			{
 				treeNodeTemp->m_deleteFlag = TRUE;
 			}
 			else
 				treeNodeTemp->m_deleteFlag = FALSE;
+			treeNodeTemp->m_strDeleteFlag = m_mapTypeStatusDelete[strKey];
 			treeNodeTemp->m_typeFlag = delete_type_devices; //0区域 1设备
 			treeNodeTemp->m_parentID = strValue;
 			treeNodeTemp->m_strName = m_mapTypeNameDelete[strKey];
@@ -3125,7 +3135,8 @@ BOOL  CWPD_MTP_dataDlg::CreateDeleteTreeStructDevices(deleteTree* &treeNode)
 
 //递归获取需要删除项的子节点 及子节点的兄弟节点
 BOOL  CWPD_MTP_dataDlg::DeleteFindID(deleteTree* & treeNode
-	, CStringArray& strAryAreas, CStringArray& strAryDevices)
+	, CMap<CString, LPCTSTR, CString, LPCTSTR>& strAryAreas
+	, CMap<CString, LPCTSTR, CString, LPCTSTR>& strAryDevices)
 {
 	//递归返回
 	if (treeNode == nullptr)
@@ -3134,12 +3145,12 @@ BOOL  CWPD_MTP_dataDlg::DeleteFindID(deleteTree* & treeNode
 	//2.1区域 删除
 	if (treeNode->m_typeFlag == delete_type_areas)
 	{
-		strAryAreas.Add(treeNode->m_strID);
+		strAryAreas.SetAt(treeNode->m_strID, treeNode->m_strID);
 	}
 	//2.2设备
 	if (treeNode->m_typeFlag == delete_type_devices)
 	{
-		strAryDevices.Add(treeNode->m_strID);
+		strAryDevices.SetAt(treeNode->m_strID, treeNode->m_strID);
 	}
 	//继续获取子节点及子节点的兄弟节点
 	DeleteFindID(treeNode->m_fistchild, strAryAreas, strAryDevices);
@@ -3150,7 +3161,8 @@ BOOL  CWPD_MTP_dataDlg::DeleteFindID(deleteTree* & treeNode
 
 //递归获取 需要删除的区域和设备 包括他们的子区域和设备
 BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDeviceFindID(deleteTree* & treeNode
-	, CStringArray& strAryAreas, CStringArray& strAryDevices)
+	, CMap<CString, LPCTSTR, CString, LPCTSTR>& strAryAreas, CMap<CString, LPCTSTR, CString, LPCTSTR>& strAryDevices
+	, CMap<CString, LPCTSTR, CString, LPCTSTR>& strAryAreasWant, CMap<CString, LPCTSTR, CString, LPCTSTR>& strAryDevicesWant)
 {
 	//1.返回条件
 	if (treeNode == nullptr)
@@ -3160,24 +3172,56 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDeviceFindID(deleteTree* & treeNode
 	//2.表示 需要删除的区域或者设备 获取他的子区域及设备 包括儿子节点的兄弟节点
 	if (treeNode->m_deleteFlag)
 	{
-		//2.1区域 删除
-		if (treeNode->m_typeFlag == delete_type_areas)
+		//2.0.1 真删
+		if (treeNode->m_strDeleteFlag == DELETEFLAG)
 		{
-			strAryAreas.Add(treeNode->m_strID);
+			//2.1区域 删除
+			if (treeNode->m_typeFlag == delete_type_areas)
+			{
+				strAryAreas.SetAt(treeNode->m_strID, treeNode->m_strID);
+			}
+			//2.2设备
+			if (treeNode->m_typeFlag == delete_type_devices)
+			{
+				strAryDevices.SetAt(treeNode->m_strID, treeNode->m_strID);
+			}
+			//继续获取子节点及子节点的兄弟节点
+			DeleteFindID(treeNode->m_fistchild, strAryAreas, strAryDevices);
 		}
-		//2.2设备
-		if (treeNode->m_typeFlag == delete_type_devices)
+		//2.0.2 假删
+		if (treeNode->m_strDeleteFlag == DELETEFLAG_WANT)
 		{
-			strAryDevices.Add(treeNode->m_strID);
+			//2.1区域 删除
+			if (treeNode->m_typeFlag == delete_type_areas)
+			{
+				strAryAreasWant.SetAt(treeNode->m_strID, treeNode->m_strID);
+			}
+			//2.2设备
+			if (treeNode->m_typeFlag == delete_type_devices)
+			{
+				strAryDevicesWant.SetAt(treeNode->m_strID, treeNode->m_strID);
+			}
+			//继续获取子节点及子节点的兄弟节点
+			DeleteFindID(treeNode->m_fistchild, strAryAreasWant, strAryDevicesWant);
 		}
-		//继续获取子节点及子节点的兄弟节点
-		DeleteFindID(treeNode->m_fistchild, strAryAreas, strAryDevices);
 	}
 	//3.递归子节点获取需要删除的项
-	DeleteAreaAndDeviceFindID(treeNode->m_fistchild, strAryAreas, strAryDevices);
+	DeleteAreaAndDeviceFindID(treeNode->m_fistchild, strAryAreas, strAryDevices, strAryAreasWant, strAryDevicesWant);
 	//4.递归兄弟节点获取需要删除的项
-	DeleteAreaAndDeviceFindID(treeNode->m_nextsibling, strAryAreas, strAryDevices);
+	DeleteAreaAndDeviceFindID(treeNode->m_nextsibling, strAryAreas, strAryDevices, strAryAreasWant, strAryDevicesWant);
 	
+}
+#define FUNMAPTOSTRARY(X,Y) {\
+CString strKey, strValue;\
+POSITION posParent = X.GetStartPosition();\
+while (posParent)\
+{\
+	X.GetNextAssoc(posParent, strKey, strValue);\
+	if (!strKey.IsEmpty())\
+	{\
+		Y.Add(strKey);\
+	}\
+}\
 }
 
 //删除相应的区域或者设备  SynchronState 为3的数据
@@ -3192,8 +3236,15 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 		{
 			return TRUE;
 		}
-		CStringArray strAryAreas, strAryDevices;
-		DeleteAreaAndDeviceFindID(m_deleteTree, strAryAreas, strAryDevices);
+		CMap<CString,LPCTSTR,CString,LPCTSTR> strAryAreasMap, strAryDevicesMap, strAryAreasWantMap, strAryDevicesWantMap;
+		CStringArray strAryAreas, strAryDevices, strAryAreasWant, strAryDevicesWant;
+		DeleteAreaAndDeviceFindID(m_deleteTree, strAryAreasMap, strAryDevicesMap, strAryAreasWantMap, strAryDevicesWantMap);
+
+		//转换map 到 字符串数组
+		FUNMAPTOSTRARY(strAryAreasMap, strAryAreas)
+		FUNMAPTOSTRARY(strAryDevicesMap, strAryDevices)
+		FUNMAPTOSTRARY(strAryAreasWantMap, strAryAreasWant)
+		FUNMAPTOSTRARY(strAryDevicesWantMap, strAryDevicesWant)
 
 		BOOL retRes = TRUE;
 		//2.开始数据删除操作
@@ -3204,7 +3255,7 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 		}
 
 		//2.1 删除终端数据库 有需要删除设备
-		if (!strAryDevices.IsEmpty())
+		if (!strAryDevices.IsEmpty() || !strAryDevicesWant.IsEmpty())
 		{
 
 			CString strSql;
@@ -3212,16 +3263,26 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 			CSQLite sq;
 			if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
 			{
-
-				int dataNum = strAryDevices.GetSize();
+				int dataNumReal = strAryDevices.GetSize();
+				int dataNumWant = strAryDevicesWant.GetSize();
+				int dataNum = dataNumReal + dataNumWant;
 				int dataCount = 1;
 				CStringArray** ppAryData = new CStringArray*[dataNum];
-				for (int index = 0; index < dataNum; ++index)
+				for (int index =0; index < dataNum; ++index)
+				{
+					ppAryData[index] = nullptr;
+				}
+				for (int index = 0; index < dataNumReal; ++index)
 				{
 					ppAryData[index] = new CStringArray;
 					ppAryData[index]->Add(strAryDevices.GetAt(index));
 				}
-				
+				for (int index = 0; index < dataNumWant; ++index)
+				{
+					ppAryData[index+ dataNumReal] = new CStringArray;
+					ppAryData[index + dataNumReal]->Add(strAryDevicesWant.GetAt(index));
+				}
+
 				BOOL ret = TRUE;
 				ret &= sq.QuickDeletData("delete from device_info where Id=?", ppAryData
 					, dataNum, dataCount, CSQLite::sqlite3_bind);
@@ -3252,6 +3313,7 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 						strAryDelete.AddTail(strTemp.GetBuffer());
 					}
 
+					
 
 					ret &= UpdateMysqlDB(strAryDelete);
 
@@ -3265,6 +3327,44 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 				}
 				
 				retRes = ret;
+				for (int index = 0; index < dataNum; ++index)
+				{
+					delete ppAryData[index];
+				}
+				delete[] ppAryData;
+
+
+				//2.2 清除 区域信息
+				int dataNumRealAreas = strAryAreas.GetSize();
+				int dataNumWantAreas = strAryAreasWant.GetSize();
+				int dataNumAreas = dataNumRealAreas + dataNumWantAreas;
+				int dataCountAreas = 1;
+				CStringArray** ppAryDataAreas = new CStringArray*[dataNumAreas];
+				for (int index = 0; index < dataNumAreas; ++index)
+				{
+					ppAryDataAreas[index] = nullptr;
+				}
+				for (int index = 0; index < dataNumRealAreas; ++index)
+				{
+					ppAryDataAreas[index] = new CStringArray;
+					ppAryDataAreas[index]->Add(strAryAreas.GetAt(index));
+				}
+				for (int index = 0; index < dataNumWantAreas; ++index)
+				{
+					ppAryDataAreas[index + dataNumRealAreas] = new CStringArray;
+					ppAryDataAreas[index + dataNumRealAreas]->Add(strAryAreasWant.GetAt(index));
+				}
+
+				
+				retRes &= sq.QuickDeletData("delete from areas where Id=?", ppAryDataAreas
+					, dataNumAreas, dataCountAreas, CSQLite::sqlite3_bind);
+
+
+				for (int index = 0; index < dataNumAreas; ++index)
+				{
+					delete ppAryDataAreas[index];
+				}
+				delete[] ppAryDataAreas;
 
 				sq.CloseDataBase();
 			}
@@ -3275,6 +3375,7 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 				retRes &= FALSE;
 			}
 		}
+
 
 		CLogRecord::WriteRecordToFile(_T("删除操作完成!"));
 		return retRes;

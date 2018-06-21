@@ -271,7 +271,7 @@ enum clear_work
 //设备表示
 
 #define  DELETEFLAG _T("3")
-
+#define  DELETEFLAG_WANT _T("2")
 enum delete_type
 {
 	delete_type_areas,
