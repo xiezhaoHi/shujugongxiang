@@ -2437,9 +2437,6 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_areas(CString const& strDBPath,  int tongbuD
 					`areas`.`isDelete`\
 					FROM `areas` ");
 
-			//	strDeleteSql = _T("SELECT `areas`.`Id` FROM `areas` where SynchronState='2'");
-			//CMap< CString, LPCTSTR, HTREEITEM, HTREEITEM> testMap; //m_mapTreeIDToCtrl
-			//testMap[_T("000000")] = (HTREEITEM)1;
 			POSITION pos = m_mapTreeIDToCtrl.GetStartPosition();
 			CString strKey;
 			HTREEITEM itemVale;
@@ -3254,87 +3251,86 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 			return FALSE;
 		}
 
-		//2.1 删除终端数据库 有需要删除设备
-		if (!strAryDevices.IsEmpty() || !strAryDevicesWant.IsEmpty())
+		CSQLite sq;
+		if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
 		{
-
-			CString strSql;
-			BOOL retRes = TRUE;
-			CSQLite sq;
-			if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
+			//2.1 删除终端数据库 有需要删除设备
+			if (!strAryDevices.IsEmpty() || !strAryDevicesWant.IsEmpty())
 			{
-				int dataNumReal = strAryDevices.GetSize();
-				int dataNumWant = strAryDevicesWant.GetSize();
-				int dataNum = dataNumReal + dataNumWant;
-				int dataCount = 1;
-				CStringArray** ppAryData = new CStringArray*[dataNum];
-				for (int index =0; index < dataNum; ++index)
-				{
-					ppAryData[index] = nullptr;
-				}
-				for (int index = 0; index < dataNumReal; ++index)
-				{
-					ppAryData[index] = new CStringArray;
-					ppAryData[index]->Add(strAryDevices.GetAt(index));
-				}
-				for (int index = 0; index < dataNumWant; ++index)
-				{
-					ppAryData[index+ dataNumReal] = new CStringArray;
-					ppAryData[index + dataNumReal]->Add(strAryDevicesWant.GetAt(index));
-				}
 
-				BOOL ret = TRUE;
-				ret &= sq.QuickDeletData("delete from device_info where Id=?", ppAryData
-					, dataNum, dataCount, CSQLite::sqlite3_bind);
+				CString strSql;
+				BOOL retRes = TRUE;
+
+				{
+					int dataNumReal = strAryDevices.GetSize();
+					int dataNumWant = strAryDevicesWant.GetSize();
+					int dataNum = dataNumReal + dataNumWant;
+					int dataCount = 1;
+					CStringArray** ppAryData = new CStringArray*[dataNum];
+					for (int index = 0; index < dataNum; ++index)
+					{
+						ppAryData[index] = nullptr;
+					}
+					for (int index = 0; index < dataNumReal; ++index)
+					{
+						ppAryData[index] = new CStringArray;
+						ppAryData[index]->Add(strAryDevices.GetAt(index));
+					}
+					for (int index = 0; index < dataNumWant; ++index)
+					{
+						ppAryData[index + dataNumReal] = new CStringArray;
+						ppAryData[index + dataNumReal]->Add(strAryDevicesWant.GetAt(index));
+					}
+
+					BOOL ret = TRUE;
+					ret &= sq.QuickDeletData("delete from device_info where Id=?", ppAryData
+						, dataNum, dataCount, CSQLite::sqlite3_bind);
 
 
-				ret &= sq.DeleteData("DELETE FROM work_type WHERE DeviceId NOT in (SELECT id FROM device_info);\
+					ret &= sq.DeleteData("DELETE FROM work_type WHERE DeviceId NOT in (SELECT id FROM device_info);\
 					DELETE FROM work_template WHERE WorkTypeId NOT in(SELECT id FROM work_type);\
 				DELETE FROM work_task WHERE DeviceId NOT in(SELECT id FROM device_info);\
 				DELETE FROM work_record WHERE DeviceId NOT in(SELECT id from device_info);");
 
-				//删除本地数据成功
-				if (ret)
-				{
-					CList<CStringA> strAryDelete;
-					CStringA strTemp;
-					//区域
-					for (int index = 0; index < strAryDevices.GetSize(); ++index)
+					//删除本地数据成功
+					if (ret)
 					{
-						strTemp.Format(("delete from device_info where Id='%s';")
-							, (CpublicFun::UnicodeToAsc(strAryDevices.GetAt(index))));
-						strAryDelete.AddTail(strTemp.GetBuffer());
-					}
+						CList<CStringA> strAryDelete;
+						CStringA strTemp;
+						//区域
+						for (int index = 0; index < strAryDevices.GetSize(); ++index)
+						{
+							strTemp.Format(("delete from device_info where Id='%s';")
+								, (CpublicFun::UnicodeToAsc(strAryDevices.GetAt(index))));
+							strAryDelete.AddTail(strTemp.GetBuffer());
+						}
 
-					for (int index = 0; index < strAryAreas.GetSize(); ++index)
-					{
-						strTemp.Format(("delete from areas where Id='%s';")
-							, (CpublicFun::UnicodeToAsc(strAryAreas.GetAt(index))));
-						strAryDelete.AddTail(strTemp.GetBuffer());
-					}
+						ret &= UpdateMysqlDB(strAryDelete);
 
-					
-
-					ret &= UpdateMysqlDB(strAryDelete);
-
-					strTemp.Format(("DELETE FROM work_type WHERE DeviceId NOT in (SELECT id FROM device_info);\
+						strTemp.Format(("DELETE FROM work_type WHERE DeviceId NOT in (SELECT id FROM device_info);\
 					DELETE FROM work_template WHERE WorkTypeId NOT in(SELECT id FROM work_type);\
 				DELETE FROM work_task WHERE DeviceId NOT in(SELECT id FROM device_info);\
 				DELETE FROM work_record WHERE DeviceId NOT in(SELECT id from device_info);"));
 
-					ret &= CMyDataBase::GetInstance()->Query(strTemp.GetBuffer());
+						ret &= CMyDataBase::GetInstance()->Query(strTemp.GetBuffer());
+
+					}
+
+					retRes = ret;
+					for (int index = 0; index < dataNum; ++index)
+					{
+						delete ppAryData[index];
+					}
+					delete[] ppAryData;
+
 
 				}
-				
-				retRes = ret;
-				for (int index = 0; index < dataNum; ++index)
-				{
-					delete ppAryData[index];
-				}
-				delete[] ppAryData;
 
+			}
 
-				//2.2 清除 区域信息
+			//2.2 清除 区域信息 并清楚相应的用户信息
+			if (!strAryAreas.IsEmpty() || !strAryAreasWant.IsEmpty())
+			{
 				int dataNumRealAreas = strAryAreas.GetSize();
 				int dataNumWantAreas = strAryAreasWant.GetSize();
 				int dataNumAreas = dataNumRealAreas + dataNumWantAreas;
@@ -3355,27 +3351,111 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 					ppAryDataAreas[index + dataNumRealAreas]->Add(strAryAreasWant.GetAt(index));
 				}
 
-				
+
 				retRes &= sq.QuickDeletData("delete from areas where Id=?", ppAryDataAreas
 					, dataNumAreas, dataCountAreas, CSQLite::sqlite3_bind);
 
+				//20180621 新增删除区域的时候 删除相应的用户
+				retRes &= sq.QuickDeletData("delete from user_table where data_areas=?", ppAryDataAreas
+					, dataNumAreas, dataCountAreas, CSQLite::sqlite3_bind);
+
+				//删除本地数据成功
+				if (retRes)
+				{
+					CStringA strTemp;
+					CList<CStringA> strAryDelete;
+					//真删时,删除相应的区域表  和区域相关的 用户表
+					for (int index = 0; index < strAryAreas.GetSize(); ++index)
+					{
+						//删区域表
+						strTemp.Format(("delete from areas where Id='%s';")
+							, (CpublicFun::UnicodeToAsc(strAryAreas.GetAt(index))));
+						strAryDelete.AddTail(strTemp.GetBuffer());
+						//删用户表
+						strTemp.Format("delete from sys_user where data_areas='%s';"
+							, (CpublicFun::UnicodeToAsc(strAryAreas.GetAt(index))));
+						strAryDelete.AddTail(strTemp.GetBuffer());
+					}
+					retRes &= UpdateMysqlDB(strAryDelete);
+				}
 
 				for (int index = 0; index < dataNumAreas; ++index)
 				{
 					delete ppAryDataAreas[index];
 				}
 				delete[] ppAryDataAreas;
+			}
 
-				sq.CloseDataBase();
+			//2.3 用户的真删
+			//2.同步状态为 已删除，则删除phone端 
+			std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
+			CString strSql;
+			strSql.Format(_T("SELECT `id` FROM  `sys_user` where SynchronState='2' or SynchronState='3';"));
+			vecData.clear();
+			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
+			{
+				int dataCount = vecData.size(), dataNum = 0;
+				if (dataCount > 0)//有数据可以同步
+				{
+					CStringA strTemp;
+					CStringArray** ppAryData = new CStringArray*[dataCount];
+					for (int index = 0; index < dataCount; ++index)
+					{
+						ppAryData[index] = nullptr;
+					}
+					int index = 0;
+					for each (std::vector<string> varVec in vecData)
+					{
+						ppAryData[index] = new CStringArray;
+						ppAryData[index]->Add(CpublicFun::AscToUnicode(varVec[sys_user_Id].c_str()));
+						++index;
+					}
+					dataNum = ppAryData[0]->GetSize();
+					BOOL ret = sq.QuickDeletData("delete from user_table where id=?", ppAryData
+						, dataCount, dataNum, CSQLite::sqlite3_bind);
+					for (int index = 0; index < dataCount; ++index)
+					{
+						delete ppAryData[index];
+					}
+					delete[] ppAryData;
+
+					if (!ret)
+					{
+						CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
+						CLogRecord::WriteRecordToFile(sq.GetLastErrorStr());
+						retRes &= FALSE;
+					}
+				}
 			}
 			else
 			{
-				CLogRecord::WriteRecordToFile(_T("删除操作失败!") + strSql);
-				CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
 				retRes &= FALSE;
 			}
-		}
 
+
+			//删除 远端的 真删数据
+			CStringA strSqlA;
+			strSqlA.Format(("delete FROM  `sys_user` where SynchronState='3';"));
+			if (CMyDataBase::GetInstance()->OneQuery(strSqlA.GetBuffer()))
+			{
+			}
+			else
+			{
+				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(
+					CMyDataBase::GetInstance()->GetErrorInfo() + strSqlA));
+				retRes &= FALSE;
+			}
+
+			//关闭数据库
+			sq.CloseDataBase();
+		}
+		else
+		{
+			
+			CLogRecord::WriteRecordToFile(_T("打开中间数据库失败!") + strDBPath);
+			retRes &= FALSE;
+		}
 
 		CLogRecord::WriteRecordToFile(_T("删除操作完成!"));
 		return retRes;
@@ -3535,7 +3615,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_sys_user(CString const&  strAreaID, CString 
 			CString strDeviceID;
 			int sqlNum = 0;
 
-			strSql.Format(_T("SELECT u.id,u.user_name,u.real_name,u.password,r.role_name,a.Name, u.SynchronState ,u.pwd_key,u.role_id FROM `sys_user` u , sys_role r, areas a\
+			strSql.Format(_T("SELECT u.id,u.user_name,u.real_name,u.password,r.role_name,a.Name, u.SynchronState ,u.pwd_key,u.role_id ,u.data_areas FROM `sys_user` u , sys_role r, areas a\
 		where  (u.SynchronState='0' or u.SynchronState='1') and u.data_areas = '%s' and u.data_areas = a.Id and u.role_id = r.id;\
 		"), strAreaID);
 			//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
@@ -3569,7 +3649,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_sys_user(CString const&  strAreaID, CString 
 						}
 						dataNum = ppAryData[0]->GetSize();
 						//执行 没有就插入  有就更新
-						CStringA strSql = "Replace  INTO `user_table` (`Id`,`LoginName`,`Name`,`Password`,`Role`,`AreaName`,`SynchronState`,pwd_key,RoleId) VALUES(?,?,?,?,?,?,?,?,?);";
+						CStringA strSql = "Replace  INTO `user_table` (`Id`,`LoginName`,`Name`,`Password`,`Role`,`AreaName`,`SynchronState`,pwd_key,RoleId,data_areas) VALUES(?,?,?,?,?,?,?,?,?,?);";
 
 						BOOL ret = sqOne.QuickInsertData(strSql
 							, ppAryData, dataCount, dataNum, CSQLite::sqlite3_bind);
@@ -3776,6 +3856,10 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 		//连接mysql数据库
 		if (CMyDataBase::GetInstance()->InitMyDataBase(m_mysqlLogin))
 		{
+
+			//0.删除终端和pc端需要删除的 区域 设备及相关联的 任务和记录
+			DeleteAreaAndDevice(gFilePath);
+
 			//选择的当前 区域ID 或者设备ID
 			CString strAreaID;
 			BOOL ret = TRUE;
@@ -4031,9 +4115,7 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 			}
 
 
-			//3.删除终端和pc端需要删除的 区域 设备及相关联的 任务和记录
-			DeleteAreaAndDevice(gFilePath);
-
+			
 
 			
 			CMyDataBase::GetInstance()->Close();
