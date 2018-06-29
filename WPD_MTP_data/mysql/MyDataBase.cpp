@@ -2,7 +2,7 @@
 #include "MyDataBase.h"
 
  CMyDataBase*  CMyDataBase::m_singletion;
-
+ CMutex g_clsMutex(FALSE, NULL);
  CMyDataBase*  CMyDataBase::GetInstance()
  {
 	 if (nullptr == m_singletion)
@@ -20,9 +20,10 @@ CMyDataBase::CMyDataBase():ErrorNum(0), ErrorInfo("ok")
 初始化数据库:读取配置文件中的信息 登陆 远程数据库
 strPath: 配置文件的绝对路径
 */
+
 bool CMyDataBase::InitMyDataBase(MySQLConInfo const& conInfo)
 {
-
+	g_clsMutex.Lock();
 	MysqlConInfo = conInfo;
 	
 	mysql_library_init(0, NULL, NULL);
@@ -71,6 +72,7 @@ bool CMyDataBase::Open()
 void CMyDataBase::Close()
 {
 	mysql_close(&MysqlInstance);
+	g_clsMutex.Unlock();
 }
 
 //读取数据  

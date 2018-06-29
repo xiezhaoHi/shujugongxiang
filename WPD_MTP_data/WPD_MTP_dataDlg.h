@@ -196,7 +196,7 @@ public:
 	*tongbuDir 同步方向:pc到终端 终端到pc
 	*tongbuFw  同步范围: 区域   设备
 	*/
-	BOOL  Synchrodata_device_info(CString const&  strAreaID, CString const& strDBPath, int tongbuDir,int tongbuFw);
+	BOOL  Synchrodata_device_info(CStringArray const&  , CString const& strDBPath, int tongbuDir,int tongbuFw);
 
 	//areas
 	/*
@@ -205,33 +205,37 @@ public:
 	BOOL  Synchrodata_areas(CString const& strDBPath, int tongbuDir);
 
 
-
+	/*
+	20180627
+	优化:多条数据 不使用循环查了,直接查询
+	
+	*/
 	//work_type  表处理
 	/*20180607 新增字段
 	*tongbuDir 同步方向:pc到终端 终端到pc
 	*/
-	BOOL  Synchrodata_work_type(CString const&  strAreaID, CString const& strDBPath, int tongbuDir);
+	BOOL  Synchrodata_work_type(CStringArray const& , CString const& strDBPath, int tongbuDir);
 
 	//work_template  表处理
 	/*20180607 新增字段
 	*tongbuDir 同步方向:pc到终端 终端到pc
 	*/
-	BOOL  Synchrodata_work_template(CString const&  strAreaID, CString const& strDBPath, int tongbuDir);
+	BOOL  Synchrodata_work_template(CStringArray const&  , CString const& strDBPath, int tongbuDir);
 
 	//work_task  表处理
 	/*20180607 新增字段
 	*tongbuDir 同步方向:pc到终端 终端到pc
 	*/
-	BOOL Synchrodata_work_task(CString const&  strAreaID, CString const& strDBPath, int tongbuDir);
+	BOOL Synchrodata_work_task(CStringArray const&  , CString const& strDBPath, int tongbuDir);
 
 	//work_record  表处理
 	/*20180607 新增字段
 	*tongbuDir 同步方向:pc到终端 终端到pc
 	*/
-	BOOL  Synchrodata_work_record(CString const&  strAreaID, CString const& strDBPath, int tongbuDir);
+	BOOL  Synchrodata_work_record(CStringArray const&  , CString const& strDBPath, int tongbuDir);
 
 	//sys_user 表处理
-	BOOL  Synchrodata_sys_user(CString const&  strAreaID, CString const& strDBPath);
+	BOOL  Synchrodata_sys_user(CStringArray const&  , CString const& strDBPath);
 
 	//20180608
 	//删除历史数据 根据选择的时间范围 删除相应的 记录和历史
@@ -288,4 +292,5 @@ public:
 	afx_msg void OnDtnDatetimechangeDatetimepickerBegin(NMHDR *pNMHDR, LRESULT *pResult);
 
 	CStatic m_static_tree_show;
+	CButton m_button_flash;
 };

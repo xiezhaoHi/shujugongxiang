@@ -44,6 +44,7 @@ void CLogDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CLogDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_LOGIN, &CLogDlg::OnBnClickedButtonLogin)
 	ON_CBN_SELCHANGE(IDC_COMBO_USER, &CLogDlg::OnCbnSelchangeComboUser)
+	ON_BN_CLICKED(IDC_BUTTON_CLEAR, &CLogDlg::OnBnClickedButtonClear)
 END_MESSAGE_MAP()
 
 
@@ -143,10 +144,13 @@ BOOL CLogDlg::OnInitDialog()
 		{
 			strNameRecord = m_userInfoRecord[index].m_strName;
 			strPwdRecord = m_userInfoRecord[index].m_strPwd;
-			m_combox_user.AddString(strNameRecord);
-			m_combox_user.SetCurSel(index);
-			m_edit_pwd.SetWindowText(strPwdRecord);
-			m_userMappwd[strNameRecord] = strPwdRecord;
+			if (!strPwdRecord.IsEmpty())
+			{
+				m_combox_user.AddString(strNameRecord);
+				m_combox_user.SetCurSel(index);
+				m_edit_pwd.SetWindowText(strPwdRecord);
+				m_userMappwd[strNameRecord] = strPwdRecord;
+			}
 		}
 		
 
@@ -228,18 +232,21 @@ BOOL CLogDlg::OnInitDialog()
 BOOL CLogDlg::RecordUser(CString const& strName, CString const& strPwd)
 {
 	//重复的用户不记录
+	//1.用户名重复,修改密码
+	
+	int curIndex = m_userInfoRecordNum;
 	for (int index = 0; index < m_userInfoRecordNum; ++index)
 	{
 		if (m_userInfoRecord[index].m_strName == strName)
 		{
-			return TRUE;
+			curIndex = index;
 		}
 	}
 	CString strIni = CLogRecord::GetAppPath() + _T("//config//config.ini");
 	CString strNameTemp, strPwdTemp,strUserMax;
-	strNameTemp.Format(_T("name_%d"), m_userInfoRecordNum);
-	strPwdTemp.Format(_T("pwd_%d"), m_userInfoRecordNum);
-	strUserMax.Format(_T("%d"), ++m_userInfoRecordNum);
+	strNameTemp.Format(_T("name_%d"), curIndex);
+	strPwdTemp.Format(_T("pwd_%d"), curIndex);
+	strUserMax.Format(_T("%d"), ++curIndex);
 	::WritePrivateProfileString(_T("USER"), strNameTemp, strName, strIni);
 	::WritePrivateProfileString(_T("USER"), strPwdTemp, strPwd, strIni);
 	::WritePrivateProfileString(_T("USER"), _T("user_max"), strUserMax, strIni);
@@ -321,4 +328,36 @@ void CLogDlg::OnCbnSelchangeComboUser()
 	CString strName;
 	m_combox_user.GetWindowText(strName);
 	m_edit_pwd.SetWindowText(m_userMappwd[strName]);
+}
+
+
+void CLogDlg::OnBnClickedButtonClear()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CString strName;
+	m_combox_user.GetWindowText(strName);
+	if (strName.IsEmpty())
+	{
+		return;
+	}
+	int n = m_combox_user.GetCurSel();
+	m_combox_user.DeleteString(n);
+	m_edit_pwd.SetWindowText(_T(""));
+	if (n>=0 && n < m_userInfoRecordNum)
+	{
+		//1.更改 密码为空
+		m_userInfoRecord[n].m_strPwd = _T("");
+		//2.以密码为空 标识 用户以删除
+		RecordUser(strName, _T(""));
+	}
+	if (n + 1 < m_userInfoRecordNum)
+	{
+		m_combox_user.SetCurSel(n + 1);
+	}
+	else if (n - 1 >= 0)
+	{
+		m_combox_user.SetCurSel(n - 1);
+	}
+	else
+		m_combox_user.SetCurSel(-1);
 }

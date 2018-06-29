@@ -130,7 +130,7 @@ BOOL CWPD_MTP_dataApp::InitInstance()
 #endif
 	
 
-	CLogRecord::WriteRecordToFile(_T("--------------程序启动!--------------"));
+	CLogRecord::WriteRecordToFile(_T("--------------程序启动1.0.5.0!--------------"));
 	CWPD_MTP_dataDlg dlg;
 	dlg.SetUserAreaRealName(strUserArea,strUserName);
 	m_pMainWnd = &dlg;

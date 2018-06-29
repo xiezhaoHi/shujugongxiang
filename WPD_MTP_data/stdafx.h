@@ -61,6 +61,9 @@
 //保留最近时间的数据 小时
 #define BACKUPSAVETIME 24
 
+//增加一个sql语句中数组的长度限制,避免 sql语句长度 超过限制
+#define MAXARRAYSIZE 20
+
 #include "logrecord/LogRecord.h"
 #include <stdio.h>
 #include <tchar.h>

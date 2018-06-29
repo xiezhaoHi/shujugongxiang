@@ -166,6 +166,7 @@ void CWPD_MTP_dataDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_BUTTON_BEGIN_CLEAR, m_bt_begin_clear);
 	DDX_Control(pDX, IDC_BUTTON_REBACK, m_bt_begin_reback);
 	DDX_Control(pDX, IDC_STATI_TREE_SHOW, m_static_tree_show);
+	DDX_Control(pDX, IDC_REFRESH_DEVS, m_button_flash);
 }
 
 BEGIN_MESSAGE_MAP(CWPD_MTP_dataDlg, CDialogEx)
@@ -523,6 +524,7 @@ void CWPD_MTP_dataDlg::ShowLog(CString const& strLog)
 {
 	m_listShow.AddString(strLog);
 	CLogRecord::WriteRecordToFile(strLog);
+	CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
 }
 
 //寻找 子节点 并 加入到树控件
@@ -590,8 +592,11 @@ void  CWPD_MTP_dataDlg::FindChildTree(CMap<CString, LPCTSTR, HTREEITEM, HTREEITE
 			{
 				HTREEITEM item = m_tree_areas.InsertItem(m_mapArea[strKey],0,0, valueItem);// 在根结点上添加Parent
 				mapParentItem[strKey] = item; //构建新的 父节点
-				m_mapTreeCtrToID[item] = strKey;
-				m_mapTreeIDToCtrl[strKey] = item;
+				if (item != nullptr)
+				{
+					m_mapTreeCtrToID[item] = strKey;
+					m_mapTreeIDToCtrl[strKey] = item;
+				}
 			}
 		}
 		//递归 获取
@@ -803,7 +808,8 @@ BOOL CWPD_MTP_dataDlg::Init_areas_tree()
 		m_mapTypeToAreaDelete.RemoveAll();
 		m_mapAreaParentDelete.RemoveAll();
 
-
+		//禁用刷控件
+		m_button_flash.EnableWindow(FALSE);
 		//////////////////////////////////////////////////////////////////////////
 		ShowLog(_T("正在初始化树控件,请稍后..."));
 		BOOL retRes = TRUE;
@@ -912,6 +918,8 @@ BOOL CWPD_MTP_dataDlg::Init_areas_tree()
 			retRes &= FALSE;
 		}
 
+
+		m_button_flash.EnableWindow(TRUE);
 		//根据区域和设备建立树 失败 网络异常
 		if (!retRes)
 		{
@@ -944,16 +952,22 @@ BOOL CWPD_MTP_dataDlg::Init_areas_tree()
 					{
 						HTREEITEM item = m_tree_areas.InsertItem(m_mapArea[strKey], 0, 0, TVI_ROOT);// 在根结点上添加Parent
 						mapParentItem[strKey] = item;
-						m_mapTreeCtrToID[item] = strKey;
-						m_mapTreeIDToCtrl[strKey] = item;
+						if (item != nullptr)
+						{
+							m_mapTreeCtrToID[item] = strKey;
+							m_mapTreeIDToCtrl[strKey] = item;
+						}
 					}
 				}
 				else if (strValue == PARENTFLAG) //为父亲节点
 				{
 					HTREEITEM item = m_tree_areas.InsertItem(m_mapArea[strKey], 0, 0, TVI_ROOT);// 在根结点上添加Parent
 					mapParentItem[strKey] = item;
-					m_mapTreeCtrToID[item] = strKey;
-					m_mapTreeIDToCtrl[strKey] = item;
+					if (item != nullptr)
+					{
+						m_mapTreeCtrToID[item] = strKey;
+						m_mapTreeIDToCtrl[strKey] = item;
+					}
 					//m_mapAreaToCtr[strKey] = item; //保存区域 关联的树控件 节点
 				}
 			}
@@ -1036,7 +1050,7 @@ BOOL CWPD_MTP_dataDlg::Init_areas_tree()
 strAreaID  选择区域ID 暂时不用
 新增需求:双向同步 
 */
-BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CString const& strDBPath, int tongbuDir)
+BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CStringArray const&  strAryAreaID, CString const& strDBPath, int tongbuDir)
 {
 	try {
 		//0.开始数据删除操作
@@ -1045,6 +1059,28 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CStri
 			CLogRecord::WriteRecordToFile(_T("数据库文件不存在:") + strDBPath);
 			return FALSE;
 		}
+
+		CString strDeviceID;
+		/*
+		拼接字符串
+		*/
+		CString strTemp;
+		for (int index = 0; index <strAryAreaID.GetSize(); ++index)
+		{
+			//第一条数据
+			if (index == 0)
+			{
+				strTemp.Format(_T("'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+			else
+			{
+				strTemp.Format(_T(",'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+
+		}
+
 
 		//限定一个时间范围
 		COleDateTime  curTime = COleDateTime::GetTickCount();
@@ -1067,8 +1103,8 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CStri
 				{
 					int RFidCount = 0, RFidNum = 0;
 					BOOL ret = FALSE;
-					strSql.Format(_T("SELECT count(*) FROM `work_record` where SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s' and DeviceId='%s';")
-						, strBeginTime, strCurTime, strAreaID);
+					strSql.Format(_T("SELECT count(*) FROM `work_record` where SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s' and DeviceId in(%s);")
+						, strBeginTime, strCurTime, strDeviceID);
 					//char buf[MAX_PATH] = { 0 };
 					if (ret = sqOne.QuickSelectDataCount(CpublicFun::UnicodeToAsc(strSql), RFidCount))
 						//if (sqOne.QuickSelectDataCount(strSql,RFidCount))
@@ -1087,8 +1123,8 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CStri
 							{
 								ppAryData[index] = nullptr;
 							}
-							strSql.Format(_T("SELECT `Id`,`DeviceId`,`WorkTaskId`,`Number`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`Executor`,ClassName FROM `work_record` where SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s' and  DeviceId='%s';")
-								, strBeginTime, strCurTime, strAreaID);
+							strSql.Format(_T("SELECT `Id`,`DeviceId`,`WorkTaskId`,`Number`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`Executor`,ClassName FROM `work_record` where SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s' and  DeviceId in(%s);")
+								, strBeginTime, strCurTime, strDeviceID);
 
 							if (ret = sqOne.QuickSelectData(CpublicFun::UnicodeToAsc(strSql), ppAryData, RFidCount))
 							{
@@ -1297,7 +1333,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_record(CString const&  strAreaID, CStri
 需要根据 选择区域 的设备ID 来找
 strAreaID  选择区域ID 暂时不用
 */
-BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString const& strDBPath, int tongbuDir)
+BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CStringArray const&  strAryAreaID, CString const& strDBPath, int tongbuDir)
 {
 	try
 	{
@@ -1316,7 +1352,27 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 		CString strSql;
 
 		//设备ID
-		CString strDeviceID=strAreaID;
+		CString strDeviceID;
+		/*
+		拼接字符串
+		*/
+		CString strTemp;
+		for (int index = 0; index <strAryAreaID.GetSize(); ++index)
+		{
+			//第一条数据
+			if (index == 0)
+			{
+				strTemp.Format(_T("'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+			else
+			{
+				strTemp.Format(_T(",'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+
+		}
+
 		int sqlNum = 0;
 		CSQLite sqOne;
 		BOOL ret = TRUE;
@@ -1342,7 +1398,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 				int RFidCount = 0;
 				CList<CStringA> listUpdateSql; //保存需要更新的sql语句
 				{
-					strSql.Format(_T("SELECT count(*) FROM `work_task` where DeviceId='%s' and SynchronState='0' and  CreateDate >= '%s' and CreateDate <= '%s';")
+					strSql.Format(_T("SELECT count(*) FROM `work_task` where DeviceId in(%s) and SynchronState='0' and  CreateDate >= '%s' and CreateDate <= '%s';")
 						, strDeviceID, strBeginTime, strCurTime);
 					if (ret = sqOne.QuickSelectDataCount(CpublicFun::UnicodeToAsc(strSql), RFidCount))
 					{
@@ -1356,7 +1412,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 							}
 							ppAryDataUpdate = new CStringArray*[RFidCount];
 							strSql.Format(_T("SELECT `Id`,`DeviceId`,`RFId`,`WorkName`,`WorkTemplateId`,`Cycle`,`StartTime`,`Executor`,`State`,`SynchronState`,`CreateDate`,`CreateUserId` ,Level,Frequency,AllId,ExecutorTime,ExecutorLevel,TaskRemark,OverdueRemark FROM `work_task` \
-					where DeviceId='%s' and SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';\
+					where DeviceId in(%s) and SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';\
 					"), strDeviceID, strBeginTime, strCurTime);
 							if (ret = sqOne.QuickSelectData(CpublicFun::UnicodeToAsc(strSql), ppAryData, RFidCount))
 							{
@@ -1455,8 +1511,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 
 					strSql.Format(_T("Select Id from work_task where AllId in(SELECT Id FROM `work_task` where Level='0' and   SynchronState='2')\
 			or Id in(SELECT Id FROM `work_task` where Level = '0' and  SynchronState='2')\
-			or DeviceId not in(select Id from device_info);")
-						, strDeviceID, strDeviceID);
+			or DeviceId not in(select Id from device_info);"));
 					vecData.clear();
 					if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
 					{
@@ -1525,8 +1580,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 					{
 						strSql.Format(_T("Select Id from work_task where AllId in(SELECT Id FROM `work_task` where Level='0' and   SynchronState='3')\
 			or Id in(SELECT Id FROM `work_task` where Level = '0' and  SynchronState='3')\
-			or DeviceId not in(select Id from device_info);")
-							, strDeviceID, strDeviceID);
+			or DeviceId not in(select Id from device_info);"));
 						vecData.clear();
 						if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
 						{
@@ -1606,7 +1660,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 
 				//2.同步新任务
 				strSql.Format(_T("SELECT `Id`,`DeviceId`,`RFId`,`WorkName`,`WorkTemplateId`,`Cycle`,`StartTime`,`Executor`,`State`,`SynchronState`,`CreateDate`,`CreateUserId`,Level,Frequency,AllId,ExecutorTime,ExecutorLevel,TaskRemark,OverdueRemark FROM `work_task` \
-		where DeviceId='%s' and SynchronState='0' and State<>'0' and CreateDate >= '%s' and CreateDate <= '%s';\
+		where DeviceId in(%s) and SynchronState='0' and State<>'0' and CreateDate >= '%s' and CreateDate <= '%s';\
 		"), strDeviceID, strBeginTime, strCurTime);
 				//2.同步选择区域  未同步的数据  并把同步状态改为 已同步
 				CList<CStringA> updateMysqlData;
@@ -1718,7 +1772,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_task(CString const&  strAreaID, CString
 需要根据 选择区域 的设备ID 来找
 strAreaID  选择区域ID 暂时不用
 */
-BOOL  CWPD_MTP_dataDlg::Synchrodata_work_template(CString const&  strAreaID, CString const& strDBPath, int tongbuDir)
+BOOL  CWPD_MTP_dataDlg::Synchrodata_work_template(CStringArray const&  strAryAreaID, CString const& strDBPath, int tongbuDir)
 {
 	try
 	{
@@ -1741,7 +1795,27 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_template(CString const&  strAreaID, CSt
 		CString strBeginTime = beginTime.Format(_T("%Y-%m-%d 00:00:00"));
 		
 		CString strSql;
-		CString strDeviceID = strAreaID;
+		CString strDeviceID;
+		/*
+		拼接字符串
+		*/
+		CString strTemp;
+		for (int index = 0; index <strAryAreaID.GetSize(); ++index)
+		{
+			//第一条数据
+			if (index == 0)
+			{
+				strTemp.Format(_T("'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+			else
+			{
+				strTemp.Format(_T(",'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+
+		}
+
 		BOOL retRes = TRUE;
 		CSQLite sqOne;
 		if (sqOne.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
@@ -1749,7 +1823,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_template(CString const&  strAreaID, CSt
 			std::vector<std::vector<std::string> > vecData; //mysql 数据库的数据
 			//获取到的ID
 			strSql.Format(_T("SELECT te.`Id`,te.`DeviceId`,te.`WorkTypeId`,te.ClassName,te.`Number`,te.`ProcessName`,te.`Results`,te.`SynchronState`,te.`CreateDate`,te.`CreateUserId` FROM `work_template` te,work_type tk \
-		where te.SynchronState ='0' or te.SynchronState ='1' and   tk.DeviceId='%s'and tk.CreateDate >= '%s' and tk.CreateDate <= '%s' and tk.Id = te.WorkTypeId;\
+		where (te.SynchronState ='0' or te.SynchronState ='1') and   tk.DeviceId in(%s) and tk.CreateDate >= '%s' and tk.CreateDate <= '%s' and tk.Id = te.WorkTypeId;\
 		"), strDeviceID, strBeginTime, strCurTime);
 			//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
 			CList<CStringA> updateMysqlData;
@@ -1901,7 +1975,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_template(CString const&  strAreaID, CSt
 
 strAreaID  选择区域ID 暂时不用
 */
-BOOL  CWPD_MTP_dataDlg::Synchrodata_work_type(CString const&  strAreaID, CString const& strDBPath, int tongbuDir)
+BOOL  CWPD_MTP_dataDlg::Synchrodata_work_type(CStringArray const&  strAryAreaID, CString const& strDBPath, int tongbuDir)
 {
 	try
 	{
@@ -1924,7 +1998,28 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_type(CString const&  strAreaID, CString
 		
 		CString strSql;
 
-		CString strDeviceID = strAreaID;
+		CString strDeviceID ;
+		/*
+		拼接字符串
+		*/
+		CString strTemp;
+		for (int index =0; index <strAryAreaID.GetSize();++index)
+		{
+			//第一条数据
+			if (index == 0)
+			{
+				strTemp.Format(_T("'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+			else
+			{
+				strTemp.Format(_T(",'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+			
+		}
+
+
 		BOOL retRes = TRUE;
 		CSQLite sq;
 		if (sq.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
@@ -1933,7 +2028,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_type(CString const&  strAreaID, CString
 			//获取到的ID
 		
 			strSql.Format(_T("SELECT `Id`,`Name`,`ProcessName`,`Results`,`SynchronState`,`CreateDate`,`CreateUserId`,DeviceId FROM `work_type`\
-		 where SynchronState='0'  and CreateDate >= '%s' and CreateDate <= '%s' and DeviceId='%s';\
+		 where SynchronState='0'  and CreateDate >= '%s' and CreateDate <= '%s' and DeviceId in(%s);\
 		"), strBeginTime, strCurTime,strDeviceID);
 			//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
 			CList<CStringA> updateMysqlData;
@@ -2087,11 +2182,34 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_work_type(CString const&  strAreaID, CString
 3.记录查询到的设备ID 方便查询 后续的表  中 对应设备的数据
 strAreaID  选择区域ID
 */
-BOOL  CWPD_MTP_dataDlg::Synchrodata_device_info(CString const&  strAreaID,CString const& strDBPath,int tongbuDir,int tongbuFw)
+BOOL  CWPD_MTP_dataDlg::Synchrodata_device_info(CStringArray const&  strAryAreaID,CString const& strDBPath,int tongbuDir,int tongbuFw)
 {
 	try
 	{
 		//所选区域没有设备 
+
+
+		CString strDeviceID;
+		/*
+		拼接字符串
+		*/
+		CString strTemp;
+		for (int index = 0; index <strAryAreaID.GetSize(); ++index)
+		{
+			//第一条数据
+			if (index == 0)
+			{
+				strTemp.Format(_T("'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+			else
+			{
+				strTemp.Format(_T(",'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+
+		}
+
 
 		COleDateTime  curTime = COleDateTime::GetTickCount();
 		COleDateTime  beginTime = curTime - COleDateTimeSpan(VALIDDAY);
@@ -2117,17 +2235,17 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_device_info(CString const&  strAreaID,CStrin
 					BOOL ret = FALSE;
 					if (tongbu_fw_areas == tongbuFw) //同步范围:区域
 					{
-						strSql.Format(_T("SELECT count(*) FROM `device_info` where AreaId='%s' and CreateDate >= '%s' and CreateDate <= '%s' and SynchronState='0';")
-							, strAreaID, strBeginTime, strCurTime);
-						strTempSql.Format(_T("SELECT `Id`,`RFID` FROM `device_info` where AreaId='%s' and CreateDate >= '%s' and CreateDate <= '%s' and SynchronState='0';")
-							, strAreaID, strBeginTime, strCurTime);
+						strSql.Format(_T("SELECT count(*) FROM `device_info` where AreaId in(%s) and CreateDate >= '%s' and CreateDate <= '%s' and SynchronState='0';")
+							, strDeviceID, strBeginTime, strCurTime);
+						strTempSql.Format(_T("SELECT `Id`,`RFID` FROM `device_info` where AreaId in(%s) and CreateDate >= '%s' and CreateDate <= '%s' and SynchronState='0';")
+							, strDeviceID, strBeginTime, strCurTime);
 					}
 					else if (tongbu_fw_devices == tongbuFw)//同步范围:设备
 					{
-						strSql.Format(_T("SELECT count(*) FROM `device_info` where Id='%s' and CreateDate >= '%s' and CreateDate <= '%s' and SynchronState='0';")
-							, strAreaID, strBeginTime, strCurTime);
-						strTempSql.Format(_T("SELECT `Id`,`RFID` FROM `device_info` where Id='%s' and CreateDate >= '%s' and CreateDate <= '%s' and SynchronState='0';")
-							, strAreaID, strBeginTime, strCurTime);
+						strSql.Format(_T("SELECT count(*) FROM `device_info` where Id in(%s) and CreateDate >= '%s' and CreateDate <= '%s' and SynchronState='0';")
+							, strDeviceID, strBeginTime, strCurTime);
+						strTempSql.Format(_T("SELECT `Id`,`RFID` FROM `device_info` where Id in(%s) and CreateDate >= '%s' and CreateDate <= '%s' and SynchronState='0';")
+							, strDeviceID, strBeginTime, strCurTime);
 					}
 					if (ret = sqOne.QuickSelectDataCount(CpublicFun::UnicodeToAsc(strSql), RFidCount))
 					{
@@ -2221,14 +2339,14 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_device_info(CString const&  strAreaID,CStrin
 				if (tongbu_fw_areas == tongbuFw) //同步范围:区域
 				{
 					strSql.Format(_T("SELECT `Id`,`RFID`,`Name`,`Picture`,`TypeId`,`Info`,`AreaId`,\
-		`SynchronState`,`CreateDate`,`CreateUserId`,ParentId,IsBindRFID  FROM `device_info` where AreaId='%s'and SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';")
-						, strAreaID, strBeginTime, strCurTime);
+		`SynchronState`,`CreateDate`,`CreateUserId`,ParentId,IsBindRFID  FROM `device_info` where AreaId in(%s) and SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';")
+						, strDeviceID, strBeginTime, strCurTime);
 				}
 				else if (tongbu_fw_devices == tongbuFw)//同步范围:设备
 				{
 					strSql.Format(_T("SELECT `Id`,`RFID`,`Name`,`Picture`,`TypeId`,`Info`,`AreaId`,\
-		`SynchronState`,`CreateDate`,`CreateUserId`,ParentId,IsBindRFID  FROM `device_info` where Id='%s'and SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';")
-						, strAreaID, strBeginTime, strCurTime);
+		`SynchronState`,`CreateDate`,`CreateUserId`,ParentId,IsBindRFID  FROM `device_info` where Id in(%s) and SynchronState='0' and CreateDate >= '%s' and CreateDate <= '%s';")
+						, strDeviceID, strBeginTime, strCurTime);
 				}
 
 				//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
@@ -2318,8 +2436,8 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_device_info(CString const&  strAreaID,CStrin
 				//2.同步状态为 已删除，则删除phone端 
 				if (tongbu_fw_areas == tongbuFw) //同步范围:区域
 				{
-					strSql.Format(_T("SELECT `Id` FROM `device_info` where AreaId='%s' and SynchronState='2' \
-	and CreateDate >= '%s' and CreateDate <= '%s' ;"), strAreaID, strBeginTime, strCurTime);
+					strSql.Format(_T("SELECT `Id` FROM `device_info` where AreaId in(%s) and SynchronState='2' \
+	and CreateDate >= '%s' and CreateDate <= '%s' ;"), strDeviceID, strBeginTime, strCurTime);
 				}
 				else if (tongbu_fw_devices == tongbuFw)//同步范围:设备
 				{
@@ -2426,7 +2544,36 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_areas(CString const& strDBPath,  int tongbuD
 		{
 
 			//1.构建sql语句
-			strSql = _T("SELECT `areas`.`Id`,\
+			
+
+			POSITION pos = m_mapTreeIDToCtrl.GetStartPosition();
+			CString strKey;
+			HTREEITEM itemVale;
+			BOOL firstFlag = TRUE;
+			CString strTemp;
+			CString strTempAll;
+			while (pos)
+			{
+				m_mapTreeIDToCtrl.GetNextAssoc(pos, strKey, itemVale);
+				if (!strKey.IsEmpty() && itemVale != nullptr) //有效值
+				{
+					if (firstFlag)
+					{
+						strTemp.Format(_T("'%s'"), strKey);
+						strTempAll += strTemp;
+						firstFlag = FALSE;
+					}
+					else
+					{
+						//以后的数据
+						strTemp.Format(_T(",'%s'"), strKey);
+						strTempAll += strTemp;
+					}
+
+				}
+			
+			}
+			strSql.Format(_T("SELECT `areas`.`Id`,\
 					`areas`.`Code`,\
 					`areas`.`Name`,\
 					`areas`.`ParentId`,\
@@ -2435,54 +2582,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_areas(CString const& strDBPath,  int tongbuD
 					`areas`.`Info`,\
 					`areas`.`SynchronState`,\
 					`areas`.`isDelete`\
-					FROM `areas` ");
-
-			POSITION pos = m_mapTreeIDToCtrl.GetStartPosition();
-			CString strKey;
-			HTREEITEM itemVale;
-			BOOL firstFlag = TRUE;
-			CString strTemp;
-			while (pos)
-			{
-				m_mapTreeIDToCtrl.GetNextAssoc(pos, strKey, itemVale);
-				if (pos && !strKey.IsEmpty() && itemVale != nullptr) //有效值
-				{
-					//第一个数据
-					if (firstFlag)
-					{
-						//查询
-						strTemp.Format(_T("where Id in('%s'"), strKey);
-						strSql += strTemp;
-						firstFlag = FALSE;
-						continue;
-					}
-					//以后的数据
-					strTemp.Format(_T(",'%s'"), strKey);
-					strSql += strTemp;
-				}
-				else
-				{
-					//表示没有一个数据
-					if (firstFlag)
-					{
-						if (!strKey.IsEmpty() && itemVale != nullptr)
-						{
-							//查询
-							strTemp.Format(_T("where Id in('%s');"), strKey);
-							strSql += strTemp;
-							firstFlag = FALSE;
-							continue;
-						}
-
-					}
-					else if (!strKey.IsEmpty() && itemVale != nullptr)
-					{
-						strTemp.Format(_T(",'%s');"), strKey);
-						strSql += strTemp;
-					}
-				}
-			}
-			
+					FROM `areas` where Id in(%s);"),strTempAll);
 			if (sqOne.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
 			{
 				//获取到的ID
@@ -2559,6 +2659,7 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_areas(CString const& strDBPath,  int tongbuD
 						CLogRecord::WriteRecordToFile(_T("同步新数据操作失败!") + strSql);
 						CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
 						retRes &= FALSE;
+						ShowLog(_T("同步区域操作失败"));
 					}
 					
 				}
@@ -3331,6 +3432,7 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 			//2.2 清除 区域信息 并清楚相应的用户信息
 			if (!strAryAreas.IsEmpty() || !strAryAreasWant.IsEmpty())
 			{
+				int ret = TRUE;
 				int dataNumRealAreas = strAryAreas.GetSize();
 				int dataNumWantAreas = strAryAreasWant.GetSize();
 				int dataNumAreas = dataNumRealAreas + dataNumWantAreas;
@@ -3352,15 +3454,15 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 				}
 
 
-				retRes &= sq.QuickDeletData("delete from areas where Id=?", ppAryDataAreas
+				ret &= sq.QuickDeletData("delete from areas where Id=?", ppAryDataAreas
 					, dataNumAreas, dataCountAreas, CSQLite::sqlite3_bind);
 
 				//20180621 新增删除区域的时候 删除相应的用户
-				retRes &= sq.QuickDeletData("delete from user_table where data_areas=?", ppAryDataAreas
+				ret &= sq.QuickDeletData("delete from user_table where data_areas=?", ppAryDataAreas
 					, dataNumAreas, dataCountAreas, CSQLite::sqlite3_bind);
 
 				//删除本地数据成功
-				if (retRes)
+				if (ret)
 				{
 					CStringA strTemp;
 					CList<CStringA> strAryDelete;
@@ -3376,7 +3478,12 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 							, (CpublicFun::UnicodeToAsc(strAryAreas.GetAt(index))));
 						strAryDelete.AddTail(strTemp.GetBuffer());
 					}
-					retRes &= UpdateMysqlDB(strAryDelete);
+					ret &= UpdateMysqlDB(strAryDelete);
+				}
+				else
+				{
+					CLogRecord::WriteRecordToFile(_T("清除区域:删除本地数据错误!"));
+					CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
 				}
 
 				for (int index = 0; index < dataNumAreas; ++index)
@@ -3384,6 +3491,7 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 					delete ppAryDataAreas[index];
 				}
 				delete[] ppAryDataAreas;
+				retRes &= ret;
 			}
 
 			//2.3 用户的真删
@@ -3429,6 +3537,7 @@ BOOL  CWPD_MTP_dataDlg::DeleteAreaAndDevice(CString const& strDBPath)
 			}
 			else
 			{
+				CLogRecord::WriteRecordToFile(_T("真删用户错误!"));
 				CLogRecord::WriteRecordToFile(CpublicFun::AscToUnicode(CMyDataBase::GetInstance()->GetErrorInfo()));
 				retRes &= FALSE;
 			}
@@ -3592,7 +3701,7 @@ BOOL CWPD_MTP_dataDlg::Init_area_devices(
 需要根据 选择区域 的设备ID 来找
 strAreaID  选择区域ID 暂时不用
 */
-BOOL  CWPD_MTP_dataDlg::Synchrodata_sys_user(CString const&  strAreaID, CString const& strDBPath)
+BOOL  CWPD_MTP_dataDlg::Synchrodata_sys_user(CStringArray const&  strAryAreaID, CString const& strDBPath)
 {
 	try
 	{
@@ -3604,6 +3713,29 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_sys_user(CString const&  strAreaID, CString 
 			return FALSE;
 		}
 
+		CString strDeviceID;
+		/*
+		拼接字符串
+		*/
+		CString strTemp;
+		for (int index = 0; index <strAryAreaID.GetSize(); ++index)
+		{
+			//第一条数据
+			if (index == 0)
+			{
+				strTemp.Format(_T("'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+			else
+			{
+				strTemp.Format(_T(",'%s'"), strAryAreaID.GetAt(index));
+				strDeviceID += strTemp;
+			}
+
+		}
+
+
+
 		BOOL retRes = TRUE;
 		CSQLite sqOne;
 		if (sqOne.OpenDataBase(CpublicFun::UnicodeToAsc(strDBPath)))
@@ -3612,12 +3744,12 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_sys_user(CString const&  strAreaID, CString 
 			CString strSql;
 
 			POSITION posDeviceID = m_areasDeviceID.GetHeadPosition();
-			CString strDeviceID;
+			
 			int sqlNum = 0;
 
 			strSql.Format(_T("SELECT u.id,u.user_name,u.real_name,u.password,r.role_name,a.Name, u.SynchronState ,u.pwd_key,u.role_id ,u.data_areas FROM `sys_user` u , sys_role r, areas a\
-		where  (u.SynchronState='0' or u.SynchronState='1') and u.data_areas = '%s' and u.data_areas = a.Id and u.role_id = r.id;\
-		"), strAreaID);
+		where  (u.SynchronState='0' or u.SynchronState='1') and u.data_areas in(%s) and u.data_areas = a.Id and u.role_id = r.id;\
+		"), strDeviceID);
 			//1.同步选择区域  未同步的数据  并把同步状态改为 已同步
 			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
 			{
@@ -3679,8 +3811,8 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_sys_user(CString const&  strAreaID, CString 
 			}
 
 			//2.同步状态为 已删除，则删除phone端 
-			strSql.Format(_T("SELECT `id` FROM  `sys_user` where SynchronState='2' and data_areas='%s';\
-		"), strAreaID);
+			strSql.Format(_T("SELECT `id` FROM  `sys_user` where SynchronState='2' and data_areas in(%s);\
+		"), strDeviceID);
 			vecData.clear();
 			if (CMyDataBase::GetInstance()->Select(CpublicFun::UnicodeToAsc(strSql).GetBuffer(), vecData))
 			{
@@ -3835,6 +3967,48 @@ BOOL  CWPD_MTP_dataDlg::Synchrodata_clear_record(CString const& strDBPath, CStri
 
 	return ret;
 }
+
+void  GetArrayItems(CStringArray const& strAryItem, CStringArray* &pStrAry,int &retSize) 
+{
+	//1.计算数组个数
+	int strArySize = strAryItem.GetSize();
+	int maxIndex = strArySize / MAXARRAYSIZE;
+	
+	int maxTemp = strArySize%MAXARRAYSIZE == 0 ? 0 : 1;
+	maxIndex += maxTemp;
+	if (maxIndex == 0)
+	{
+		return;
+	}
+	retSize = maxIndex;
+	pStrAry = new CStringArray[maxIndex];
+
+	CString strTemp;
+	int curIndex = 0;
+	int curAllIndex = 0;
+	for (curAllIndex =0; curAllIndex <maxIndex;++curAllIndex)
+	{
+	
+		int curIndexTemp = curIndex;
+		for (int ind = curIndexTemp
+			; ind < curIndexTemp + MAXARRAYSIZE && ind < strAryItem.GetSize()
+			; ++ind, ++curIndex)
+		{
+			strTemp = strAryItem.GetAt(ind);
+			if (strTemp.IsEmpty())
+			{
+				break;
+			}
+			pStrAry[curAllIndex].Add(strTemp);
+		}
+	}
+}
+
+void  ReleasArrayItems(CStringArray* &pStrAry, int &retSize)
+{
+	delete[] pStrAry;
+}
+
 /************************************************************************/
 /*
 	执行流程:	1.先从中间sqlite 数据库中 获取需要更新的数据,插入到pc端mysql数据库中,
@@ -3853,6 +4027,8 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 
 		m_areasDeviceID.RemoveAll();
 	
+		
+
 		//连接mysql数据库
 		if (CMyDataBase::GetInstance()->InitMyDataBase(m_mysqlLogin))
 		{
@@ -3887,22 +4063,23 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 				else if (m_mapTreeCtrToID[m_treeCtrl_curItem] != _T(""))//1.只选择了 区域
 				{
 
-					CStringArray strAryItem; //选择的区域及子区域
-					FindChildID(strAryItem, m_treeCtrl_curItem);
+					CStringArray strAryDeviceID; //选择的区域及子区域
+					FindChildID(strAryDeviceID, m_treeCtrl_curItem);
 					//2.系统选择
 					//初始化中间变量
 					m_updateMysqlData.RemoveAll();
-					for (int index = 0; index < strAryItem.GetSize(); ++index)
+
+					CStringArray* pStrAry = nullptr;
+					int			  strArySize = 0;
+					GetArrayItems(strAryDeviceID, pStrAry, strArySize);
+
+					for (int index = 0; index < strArySize; ++index)
 					{
 
-						strAreaID = strAryItem[index];
-						CStringArray strTypeId;
-
-						ASSERT(!strAreaID.IsEmpty());
+						if(pStrAry[index].GetSize()>0)
 						{
-
 							//7.同步表 sys_user 信息
-							if (!Synchrodata_sys_user(strAreaID, strPath))
+							if (!Synchrodata_sys_user(pStrAry[index], strPath))
 							{
 								ShowLog(_T("设备类型表(sys_user) -同步失败!"));
 								ret = FALSE;
@@ -3910,8 +4087,9 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 						}
 
 					}
-					//00.同步完成后,更改mysql 同步状态
 
+					ReleasArrayItems(pStrAry, strArySize);
+					//00.同步完成后,更改mysql 同步状态
 					if (!UpdateMysqlDB(m_updateMysqlData))
 					{
 						ShowLog(_T("更新服务端数据库 同步状态失败 -同步失败!"));
@@ -3930,24 +4108,30 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 				if (m_mapTreeCtrToIDType[m_treeCtrl_curItem] != _T("")) //2.系统选择
 				{
 
-					CStringArray strAryItem; //选择设备及子设备
-					FindChildTypeID(strAryItem, m_treeCtrl_curItem);
+					CStringArray strAryDeviceID; //选择设备及子设备
+					FindChildTypeID(strAryDeviceID, m_treeCtrl_curItem);
 					//初始化中间变量
 					m_updateMysqlData.RemoveAll();
 
-					for (int index = 0; index < strAryItem.GetSize(); ++index)
+					CStringArray* pStrAry = nullptr;
+					int			  strArySize = 0;
+					GetArrayItems(strAryDeviceID, pStrAry, strArySize);
+
+
+					for (int index = 0; index < strArySize; ++index)
 					{
 						//2.系统选择
-						strAreaID = strAryItem[index];
+						if(pStrAry[index].GetSize()>0)
 						{
 							//2.同步表 device_info
-							if (!Synchrodata_device_info(strAreaID, strPath, m_tongbu_dir,tongbu_fw_devices))
+							if (!Synchrodata_device_info(pStrAry[index], strPath, m_tongbu_dir,tongbu_fw_devices))
 							{
 								ShowLog(_T("设备类型表(device_info) -同步失败!"));
 								ret = FALSE;
 							}
 						}
 					}
+					ReleasArrayItems(pStrAry, strArySize);
 					//00.同步完成后,更改mysql 同步状态
 
 					if (!UpdateMysqlDB(m_updateMysqlData))
@@ -3959,27 +4143,29 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 				else if (m_mapTreeCtrToID[m_treeCtrl_curItem] != _T(""))//1.只选择了 区域
 				{
 
-					CStringArray strAryItem; //选择的区域及子区域
-					FindChildID(strAryItem, m_treeCtrl_curItem);
+					CStringArray strAryDeviceID; //选择的区域及子区域
+					FindChildID(strAryDeviceID, m_treeCtrl_curItem);
 					//初始化中间变量
 					m_updateMysqlData.RemoveAll();
 
-					for (int index = 0; index < strAryItem.GetSize(); ++index)
+					CStringArray* pStrAry = nullptr;
+					int			  strArySize = 0;
+					GetArrayItems(strAryDeviceID, pStrAry, strArySize);
+
+					for (int index = 0; index < strArySize; ++index)
 					{
 						//2.系统选择
-						strAreaID = strAryItem[index];
+						if (pStrAry[index].GetSize() > 0)
 						{
 							//2.同步表 device_info
-							if (!Synchrodata_device_info(strAreaID, strPath,m_tongbu_dir,tongbu_fw_areas))
+							if (!Synchrodata_device_info(pStrAry[index], strPath,m_tongbu_dir,tongbu_fw_areas))
 							{
 								ShowLog(_T("设备类型表(device_info) -同步失败!"));
 								ret = FALSE;
 							}
 						}
-
-
 					}
-
+					ReleasArrayItems(pStrAry, strArySize);
 
 					//00.同步完成后,更改mysql 同步状态
 
@@ -3994,34 +4180,39 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 			{
 				if (m_mapTreeCtrToIDType[m_treeCtrl_curItem] != _T("")) //2.系统选择
 				{
-					CStringArray strAryItem; //选择的区域及子区域
-					FindChildTypeID(strAryItem, m_treeCtrl_curItem);
+					CStringArray strAryDeviceID; //选择的区域及子区域
+					FindChildTypeID(strAryDeviceID, m_treeCtrl_curItem);
 					//初始化中间变量
 					m_updateMysqlData.RemoveAll();
 
-					for (int index = 0; index < strAryItem.GetSize(); ++index)
-					{
 					
-						strAreaID = strAryItem[index];
+					CStringArray* pStrAry = nullptr;
+					int		strArySize = 0;
+					GetArrayItems(strAryDeviceID, pStrAry, strArySize);
+
+					for (int index = 0; index < strArySize; ++index)
+					{
+						//2.系统选择
+						if (pStrAry[index].GetSize() > 0)
 						{
 							
 							//3.同步表 work_template
 							//模板表 关联work_type表 只同步 work_type 需要同步的任务 关联的模板
-							if (!Synchrodata_work_template(strAreaID, strPath, m_tongbu_dir))
+							if (!Synchrodata_work_template(pStrAry[index], strPath, m_tongbu_dir))
 							{
 								ShowLog(_T("设备类型表(work_template) -同步失败!"));
 								ret = FALSE;
 							}
 						
 							//4.同步表 work_type
-							if (!Synchrodata_work_type(strAreaID, strPath,m_tongbu_dir))
+							if (!Synchrodata_work_type(pStrAry[index], strPath,m_tongbu_dir))
 							{
 								ShowLog(_T("设备类型表(work_type) -同步失败!"));
 								ret = FALSE;
 							}
 						
 							//5.同步表 work_task
-							if (!Synchrodata_work_task(strAreaID, strPath,m_tongbu_dir))
+							if (!Synchrodata_work_task(pStrAry[index], strPath,m_tongbu_dir))
 							{
 								ShowLog(_T("设备类型表(work_task) -同步失败!"));
 								ret = FALSE;
@@ -4029,7 +4220,7 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 							}
 							
 							//6.同步表 work_record
-							if (!Synchrodata_work_record(strAreaID, strPath, m_tongbu_dir))
+							if (!Synchrodata_work_record(pStrAry[index], strPath, m_tongbu_dir))
 							{
 								ShowLog(_T("设备类型表(work_record) -同步失败!"));
 								ret = FALSE;
@@ -4039,7 +4230,7 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 				
 					}
 					//00.同步完成后,更改mysql 同步状态
-
+					ReleasArrayItems(pStrAry, strArySize);
 					if (!UpdateMysqlDB(m_updateMysqlData))
 					{
 						ShowLog(_T("更新服务端数据库 同步状态失败 -同步失败!"));
@@ -4054,36 +4245,37 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 					//0.初始化该区域的设备缓存
 					CStringArray strAryDeviceID;
 					FindChildTypeID(strAryDeviceID, m_treeCtrl_curItem);
-// 					if (!Init_area_devices(strAryItem, strAryDeviceID))
-// 					{
-// 						ShowLog(_T("初始化该区域的设备缓存失败-同步失败!"));
-// 						ret = FALSE;
-// 					}
+
 					CTime tm = CTime::GetCurrentTime();
 					
-					for (int index = 0; index < strAryDeviceID.GetSize(); ++index)
+					
+					CStringArray* pStrAry = nullptr;
+					int			  strArySize = 0;
+					GetArrayItems(strAryDeviceID, pStrAry, strArySize);
+
+					for (int index = 0; index < strArySize; ++index)
 					{
-						
-						strAreaID = strAryDeviceID[index];
+						//2.系统选择
+						if (pStrAry[index].GetSize() > 0)
 						{
 					
 							//3.同步表 work_template
 							//模板表 关联work_type表 只同步 work_type 需要同步的任务 关联的模板
-							if (!Synchrodata_work_template(strAreaID, strPath, m_tongbu_dir))
+							if (!Synchrodata_work_template(pStrAry[index], strPath, m_tongbu_dir))
 							{
 								ShowLog(_T("设备类型表(work_template) -同步失败!"));
 								ret = FALSE;
 							}
 					
 							//4.同步表 work_type
-							if (!Synchrodata_work_type(strAreaID, strPath, m_tongbu_dir))
+							if (!Synchrodata_work_type(pStrAry[index], strPath, m_tongbu_dir))
 							{
 								ShowLog(_T("设备类型表(work_type) -同步失败!"));
 								ret = FALSE;
 							}
 					
 							//5.同步表 work_task
-							if (!Synchrodata_work_task(strAreaID, strPath, m_tongbu_dir))
+							if (!Synchrodata_work_task(pStrAry[index], strPath, m_tongbu_dir))
 							{
 								ShowLog(_T("设备类型表(work_task) -同步失败!"));
 								ret = FALSE;
@@ -4091,7 +4283,7 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 							}
 							
 							//6.同步表 work_record
-							if (!Synchrodata_work_record(strAreaID, strPath, m_tongbu_dir))
+							if (!Synchrodata_work_record(pStrAry[index], strPath, m_tongbu_dir))
 							{
 								ShowLog(_T("设备类型表(work_record) -同步失败!"));
 								ret = FALSE;
@@ -4101,7 +4293,7 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 						
 					}
 					//00.同步完成后,更改mysql 同步状态
-				
+					ReleasArrayItems(pStrAry, strArySize);
 					if (!UpdateMysqlDB(m_updateMysqlData))
 					{
 						ShowLog(_T("更新服务端数据库 同步状态失败 -同步失败!"));
@@ -4114,8 +4306,6 @@ BOOL  CWPD_MTP_dataDlg::BeginSwitchData(CString const& strPath)
 
 			}
 
-
-			
 
 			
 			CMyDataBase::GetInstance()->Close();
@@ -4429,6 +4619,8 @@ UINT MyControllingFunction(LPVOID pParam)
 	//20180608 增加 操作提示
 	CString strText; //提示
 	CString strTitle; //标题
+
+
 	if (pDlg->m_radioChoose == radio_work) //任务
 	{
 		strText = _T("正在进行[同步任务],请点击确认开始!");
@@ -4461,6 +4653,8 @@ UINT MyControllingFunction(LPVOID pParam)
 		return -1;
 	}
 
+	//20180627 新增 刷新禁用
+	pDlg->m_button_flash.EnableWindow(FALSE);
 
 	/************************************************************************/
 #ifdef DEBUG
@@ -4477,6 +4671,7 @@ UINT MyControllingFunction(LPVOID pParam)
 	pDlg->m_threadFlag = FALSE;
 	pDlg->m_bt_tophone.EnableWindow(TRUE);
 	pDlg->m_button_zdtopc.EnableWindow(TRUE);
+	pDlg->m_button_flash.EnableWindow(TRUE);
 	if (pDlg->m_radioChoose == radio_user)//用户选中
 	{
 		pDlg->m_button_zdtopc.EnableWindow(FALSE);
@@ -4512,6 +4707,7 @@ UINT MyControllingFunction(LPVOID pParam)
 	pDlg->m_threadFlag = FALSE;
 	pDlg->m_bt_tophone.EnableWindow(TRUE);
 	pDlg->m_button_zdtopc.EnableWindow(TRUE);
+	pDlg->m_button_flash.EnableWindow(TRUE);
 	if (pDlg->m_radioChoose == radio_user)//用户选中
 	{
 		pDlg->m_button_zdtopc.EnableWindow(FALSE);
@@ -4534,7 +4730,8 @@ UINT MyControllingFunction(LPVOID pParam)
 void CWPD_MTP_dataDlg::OnBnClickedBtTophone()
 {	
 	//判断 树控件选择 为叶节点
-#ifndef DEBUG
+#ifndef MYTEST
+
 	if (nullptr == m_treeCtrl_curItem)
 	{
 		ShowLog(_T("请选择一个区域或者设备"));
@@ -4553,7 +4750,7 @@ void CWPD_MTP_dataDlg::OnBnClickedBtTophone()
 		m_threadFlag = TRUE;
 	}
 	else
-		ShowLog(_T("连接设备失败,请重新插拔设备再重试!!"));
+		ShowLog(_T("同步繁忙,请稍等或者重新插拔设备再试!!"));
 }
 LRESULT CWPD_MTP_dataDlg::OnMyDeviceChange(WPARAM wParam, LPARAM lParam)
 {

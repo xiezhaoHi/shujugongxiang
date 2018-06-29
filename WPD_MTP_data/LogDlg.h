@@ -19,7 +19,7 @@ typedef struct user_infoRecord
 {
 	CString m_strName;
 	CString m_strPwd;
-};
+}user_infoRecord;
 
 class CLogDlg : public CDialogEx
 {
@@ -63,4 +63,5 @@ public:
 	CEdit m_edit_pwd;
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	afx_msg void OnCbnSelchangeComboUser();
+	afx_msg void OnBnClickedButtonClear();
 };
